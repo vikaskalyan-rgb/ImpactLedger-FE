@@ -2,15 +2,24 @@ import type { ReactNode } from "react";
 import { Document, Page, View, Text, Svg, Path, Rect, Font, StyleSheet } from "@react-pdf/renderer";
 import type { AppraisalType, PdfMode, Priority, Recognition, Task } from "@/types";
 
-// Registers Inter to match the web app's own font-sans exactly. Only reachable
-// with real internet access (works fine once deployed; Google Fonts isn't
-// reachable from every sandboxed dev environment, but that's not a concern here).
+// Bundled locally via @fontsource/inter (npm install @fontsource/inter) rather than
+// fetched from Google Fonts at PDF-generation time — no dependency on an external
+// request succeeding, and no risk of a stale/incorrect CDN URL. Vite's `?url` suffix
+// resolves each import to the final hashed asset URL at build time.
+// Note: react-pdf's font parser (fontkit) does not reliably support WOFF2 — use the
+// plain .woff files specifically, not .woff2.
+import interRegular from "@fontsource/inter/files/inter-latin-400-normal.woff?url";
+import interItalic from "@fontsource/inter/files/inter-latin-400-italic.woff?url";
+import interSemibold from "@fontsource/inter/files/inter-latin-600-normal.woff?url";
+import interBold from "@fontsource/inter/files/inter-latin-700-normal.woff?url";
+
 Font.register({
   family: "Inter",
   fonts: [
-    { src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMa1ZL7.ttf", fontWeight: 400 },
-    { src: "https://fonts.gstatic.com/s/inter/v18/UcC73FwrK3iLTeHuS_fvQtMwCp50SmZi_lu3-nn0.ttf", fontWeight: 600 },
-    { src: "https://fonts.gstatic.com/s/inter/v18/UcC73FwrK3iLTeHuS_fvQtMwCp50VXTa_lu3-nn0.ttf", fontWeight: 700 },
+    { src: interRegular, fontWeight: 400, fontStyle: "normal" },
+    { src: interItalic, fontWeight: 400, fontStyle: "italic" },
+    { src: interSemibold, fontWeight: 600, fontStyle: "normal" },
+    { src: interBold, fontWeight: 700, fontStyle: "normal" },
   ],
 });
 
