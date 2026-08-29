@@ -120,7 +120,7 @@ export function DashboardPage() {
               <Pie data={priorityData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
                 {priorityData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
               </Pie>
-              <Tooltip contentStyle={{ background: "#11161F", border: "1px solid #232B3A", borderRadius: 8 }} />
+              <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E5EA", borderRadius: 8, color: "#1A1D23" }} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
@@ -132,7 +132,7 @@ export function DashboardPage() {
               <Pie data={typeData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
                 {typeData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
               </Pie>
-              <Tooltip contentStyle={{ background: "#11161F", border: "1px solid #232B3A", borderRadius: 8 }} />
+              <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E5EA", borderRadius: 8, color: "#1A1D23" }} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
@@ -141,9 +141,9 @@ export function DashboardPage() {
           <h3 className="mb-3 text-sm font-medium text-muted">Completed by Month</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={monthData}>
-              <XAxis dataKey="month" stroke="#5F6B80" fontSize={12} />
-              <YAxis stroke="#5F6B80" fontSize={12} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: "#11161F", border: "1px solid #232B3A", borderRadius: 8 }} cursor={{ fill: "#161C28" }} />
+              <XAxis dataKey="month" stroke="#8D97A5" fontSize={12} />
+              <YAxis stroke="#8D97A5" fontSize={12} allowDecimals={false} />
+              <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E5EA", borderRadius: 8, color: "#1A1D23" }} cursor={{ fill: "#F1F3F5" }} />
               <Bar dataKey="value" fill="#3E92CC" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
