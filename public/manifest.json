@@ -1,0 +1,10 @@
+{
+  "name": "ImpactLedger",
+  "short_name": "ImpactLedger",
+  "description": "Track your work, decisions, and PRs — generate polished appraisal reports.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0F17",
+  "theme_color": "#0B0F17",
+  "icons": []
+}
