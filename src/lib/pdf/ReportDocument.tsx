@@ -123,15 +123,6 @@ function computeStats(tasks: Task[]): Stats {
   return { byPriority, byTaskType, byMonth, byTech, totalPrs, complexityMajorShare: tasks.length > 0 ? majorCount / tasks.length : 0 };
 }
 
-function topCollaborators(tasks: Task[], limit = 6): { name: string; count: number }[] {
-  const counts: Record<string, number> = {};
-  tasks.forEach((t) => (t.collaborators || []).forEach((c) => { counts[c] = (counts[c] || 0) + 1; }));
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([name, count]) => ({ name, count }));
-}
-
 function risksAndBlockers(tasks: Task[]): Task[] {
   return tasks.filter((t) => t.riskOrBlockerNotes && t.riskOrBlockerNotes.trim() !== "");
 }
@@ -227,11 +218,6 @@ const s = StyleSheet.create({
 
   techLabel: { fontSize: 7, color: COLORS.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 16 },
   techLine: { fontSize: 7.5, color: COLORS.muted, marginTop: 3, lineHeight: 1.5 },
-
-  collabRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
-  collabPill: { flexDirection: "row", alignItems: "center", backgroundColor: COLORS.headerTint, borderRadius: 10, paddingVertical: 3, paddingHorizontal: 9 },
-  collabName: { fontSize: 7.5, fontWeight: 700, color: COLORS.ink },
-  collabCount: { fontSize: 7, color: COLORS.muted },
 
   quarterMetaTable: { marginBottom: 10 },
   quarterMetaHeaderRow: { flexDirection: "row", backgroundColor: COLORS.headerTint, borderBottomWidth: 1, borderBottomColor: COLORS.borderStrong },
@@ -429,7 +415,6 @@ function OverviewSection({ tasks, narrative }: { tasks: Task[]; narrative?: stri
     .slice(0, 10)
     .map(([k]) => k)
     .join("   \u00b7   ");
-  const collaborators = topCollaborators(tasks);
 
   return (
     <>
@@ -456,20 +441,6 @@ function OverviewSection({ tasks, narrative }: { tasks: Task[]; narrative?: stri
         <>
           <Text style={s.techLabel}>Tech Touched</Text>
           <Text style={s.techLine}>{techLine}</Text>
-        </>
-      )}
-
-      {collaborators.length > 0 && (
-        <>
-          <Text style={s.techLabel}>Top Collaborators</Text>
-          <View style={s.collabRow}>
-            {collaborators.map((c) => (
-              <View key={c.name} style={s.collabPill}>
-                <Text style={s.collabName}>{c.name}</Text>
-                <Text style={s.collabCount}>{"  \u00b7 "}{c.count}</Text>
-              </View>
-            ))}
-          </View>
         </>
       )}
     </>
