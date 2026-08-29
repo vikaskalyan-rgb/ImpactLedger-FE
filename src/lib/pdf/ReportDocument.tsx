@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Document, Page, View, Text, Svg, Path, Rect, Font, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, View, Text, Svg, Path, Rect, Defs, LinearGradient, Stop, Font, StyleSheet } from "@react-pdf/renderer";
 import type { AppraisalType, PdfMode, Priority, Recognition, Task } from "@/types";
 
 // Bundled locally via @fontsource/inter (npm install @fontsource/inter) rather than
@@ -31,6 +31,8 @@ const COLORS = {
   border: "#E2E5EA",
   borderStrong: "#C9C9C9",
   brand: "#1D70A8",
+  brandLight: "#6FB8E6",
+  cardBg: "#FAFBFC",
   headerTint: "#F3F6FA",
   p1: "#D33A3A",
   p2: "#B7791F",
@@ -73,12 +75,28 @@ function quarterOf(t: Task): number | null {
   return Math.ceil(month / 3);
 }
 
+/** Lightens a hex color toward white by the given fraction (0-1), for gradient stops. */
+function lighten(hex: string, amount: number): string {
+  const n = hex.replace("#", "");
+  const r = parseInt(n.slice(0, 2), 16);
+  const g = parseInt(n.slice(2, 4), 16);
+  const b = parseInt(n.slice(4, 6), 16);
+  const mix = (c: number) => Math.round(c + (255 - c) * amount);
+  return `#${[mix(r), mix(g), mix(b)].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function gradientId(color: string): string {
+  return `grad-${color.replace("#", "")}`;
+}
+
 // ---- Stats (mirrors the backend's StatsService.buildStats logic) ----
 interface Stats {
   byPriority: Record<string, number>;
   byTaskType: Record<string, number>;
   byMonth: Record<string, number>; // completed tasks only
   byTech: Record<string, number>;
+  totalPrs: number;
+  complexityMajorShare: number; // 0-1
 }
 
 function computeStats(tasks: Task[]): Stats {
@@ -86,6 +104,8 @@ function computeStats(tasks: Task[]): Stats {
   const byTaskType: Record<string, number> = {};
   const byMonth: Record<string, number> = {};
   const byTech: Record<string, number> = {};
+  let totalPrs = 0;
+  let majorCount = 0;
 
   tasks.forEach((t) => {
     byPriority[t.priority] = (byPriority[t.priority] || 0) + 1;
@@ -96,9 +116,24 @@ function computeStats(tasks: Task[]): Stats {
       byMonth[ym] = (byMonth[ym] || 0) + 1;
     }
     (t.techStack || []).forEach((tech) => { byTech[tech] = (byTech[tech] || 0) + 1; });
+    totalPrs += t.prLinks?.length ?? 0;
+    if (t.complexity === "MAJOR") majorCount++;
   });
 
-  return { byPriority, byTaskType, byMonth, byTech };
+  return { byPriority, byTaskType, byMonth, byTech, totalPrs, complexityMajorShare: tasks.length > 0 ? majorCount / tasks.length : 0 };
+}
+
+function topCollaborators(tasks: Task[], limit = 6): { name: string; count: number }[] {
+  const counts: Record<string, number> = {};
+  tasks.forEach((t) => (t.collaborators || []).forEach((c) => { counts[c] = (counts[c] || 0) + 1; }));
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([name, count]) => ({ name, count }));
+}
+
+function risksAndBlockers(tasks: Task[]): Task[] {
+  return tasks.filter((t) => t.riskOrBlockerNotes && t.riskOrBlockerNotes.trim() !== "");
 }
 
 // ---- SVG donut chart geometry ----
@@ -133,6 +168,21 @@ function niceMax(value: number): number {
   return niceNormalized * magnitude;
 }
 
+/** Shared gradient defs for a set of colors — glossy, dimensional fills instead of a flat-blur "shadow" (PDF vector graphics can't reliably do blur). */
+function GradientDefs({ colors }: { colors: string[] }) {
+  const unique = Array.from(new Set(colors));
+  return (
+    <Defs>
+      {unique.map((color) => (
+        <LinearGradient key={color} id={gradientId(color)} x1="0" y1="0" x2="1" y2="1">
+          <Stop offset="0" stopColor={lighten(color, 0.35)} />
+          <Stop offset="1" stopColor={color} />
+        </LinearGradient>
+      ))}
+    </Defs>
+  );
+}
+
 // ---- Styles ----
 const s = StyleSheet.create({
   page: { fontFamily: "Inter", fontSize: 9, color: COLORS.ink, paddingTop: 40, paddingBottom: 44, paddingHorizontal: 40 },
@@ -145,13 +195,16 @@ const s = StyleSheet.create({
   statLabel: { fontSize: 7, color: COLORS.muted, marginTop: 3, textTransform: "uppercase", letterSpacing: 0.5 },
   docsLine: { fontSize: 8, color: COLORS.muted, textAlign: "center", marginTop: 10, fontStyle: "italic" },
 
+  narrativeCard: { backgroundColor: COLORS.cardBg, borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, padding: 14, marginTop: 20 },
+  narrativeText: { fontSize: 9.5, lineHeight: 1.55, color: COLORS.ink },
+
   sectionHeaderRow: { flexDirection: "row", alignItems: "center", marginTop: 22, marginBottom: 8 },
   sectionMarker: { width: 4, height: 13, backgroundColor: COLORS.brand, marginRight: 7 },
   sectionTitle: { fontSize: 12.5, fontWeight: 700 },
   sectionRule: { borderBottomWidth: 1, borderBottomColor: COLORS.borderStrong, marginBottom: 12 },
 
-  overviewRow: { flexDirection: "row", gap: 40 },
-  overviewCol: { flex: 1 },
+  overviewRow: { flexDirection: "row", gap: 16 },
+  overviewCol: { flex: 1, backgroundColor: COLORS.cardBg, borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, padding: 12 },
   chartTitle: { fontSize: 9.5, fontWeight: 700, marginBottom: 8 },
   donutRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   legend: { flexDirection: "column", gap: 5 },
@@ -166,8 +219,19 @@ const s = StyleSheet.create({
   barLabels: { flexDirection: "row", marginTop: 2 },
   barLabel: { fontSize: 7, color: COLORS.mutedForeground, textAlign: "center" },
 
+  deltaRow: { flexDirection: "row", gap: 14, marginBottom: 10 },
+  deltaPill: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: COLORS.headerTint, borderRadius: 4, paddingVertical: 3, paddingHorizontal: 8 },
+  deltaText: { fontSize: 7.5, fontWeight: 700 },
+  deltaTextUp: { color: COLORS.success },
+  deltaTextDown: { color: COLORS.muted },
+
   techLabel: { fontSize: 7, color: COLORS.muted, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 16 },
   techLine: { fontSize: 7.5, color: COLORS.muted, marginTop: 3, lineHeight: 1.5 },
+
+  collabRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  collabPill: { flexDirection: "row", alignItems: "center", backgroundColor: COLORS.headerTint, borderRadius: 10, paddingVertical: 3, paddingHorizontal: 9 },
+  collabName: { fontSize: 7.5, fontWeight: 700, color: COLORS.ink },
+  collabCount: { fontSize: 7, color: COLORS.muted },
 
   quarterMetaTable: { marginBottom: 10 },
   quarterMetaHeaderRow: { flexDirection: "row", backgroundColor: COLORS.headerTint, borderBottomWidth: 1, borderBottomColor: COLORS.borderStrong },
@@ -191,6 +255,9 @@ const s = StyleSheet.create({
   highlightImpact: { fontSize: 9, marginTop: 3, marginBottom: 10 },
   recognitionMeta: { fontSize: 9, fontWeight: 700 },
   recognitionMessage: { fontSize: 9, marginBottom: 6 },
+  riskTitle: { fontSize: 9.5, fontWeight: 700 },
+  riskTicket: { fontSize: 8, color: COLORS.muted, fontStyle: "italic" },
+  riskNote: { fontSize: 9, marginTop: 3, marginBottom: 10, color: COLORS.ink },
 
   pageFooter: { position: "absolute", bottom: 18, left: 0, right: 0, textAlign: "center", fontSize: 7.5, color: COLORS.mutedForeground },
 });
@@ -219,6 +286,7 @@ function DonutWithLegend({
   const entries = (order ?? Object.keys(dataMap)).filter((k) => dataMap[k] > 0);
   const total = entries.reduce((sum, k) => sum + dataMap[k], 0);
   const cx = size / 2, cy = size / 2, outerR = size * 0.46, innerR = size * 0.27;
+  const usedColors = entries.map((_, i) => colors[i % colors.length]);
 
   let cursor = 0;
   const slices = entries.map((key, i) => {
@@ -226,14 +294,16 @@ function DonutWithLegend({
     const angle = (value / total) * 360;
     const path = ringSlicePath(cx, cy, outerR, innerR, cursor, cursor + angle);
     cursor += angle;
-    return <Path key={key} d={path} fill={colors[i % colors.length]} />;
+    const color = colors[i % colors.length];
+    return <Path key={key} d={path} fill={`url(#${gradientId(color)})`} />;
   });
 
   return (
-    <View style={s.overviewCol}>
+    <View style={s.overviewCol} wrap={false}>
       <Text style={s.chartTitle}>{title}</Text>
       <View style={s.donutRow}>
         <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <GradientDefs colors={usedColors} />
           {slices}
         </Svg>
         <View style={s.legend}>
@@ -286,11 +356,11 @@ function BarChart({
   const bars = entries.map(([month, value], i) => {
     const slotX = i * barSlot + (barSlot - actualBarW) / 2;
     const barH = value * scale;
-    return <Rect key={month} x={slotX} y={chartH - barH} width={actualBarW} height={barH} fill={COLORS.brand} rx={2} />;
+    return <Rect key={month} x={slotX} y={chartH - barH} width={actualBarW} height={barH} fill={`url(#${gradientId(COLORS.brand)})`} rx={2} />;
   });
 
   return (
-    <View style={s.overviewCol}>
+    <View style={s.overviewCol} wrap={false}>
       <Text style={s.chartTitle}>{title}</Text>
       <View style={s.barChartRow}>
         <View style={{ ...s.yAxisCol, height: chartH }}>
@@ -298,6 +368,7 @@ function BarChart({
         </View>
         <View>
           <Svg width={chartW} height={chartH} viewBox={`0 0 ${chartW} ${chartH}`}>
+            <GradientDefs colors={[COLORS.brand]} />
             {gridlines}
             {bars}
           </Svg>
@@ -312,7 +383,43 @@ function BarChart({
   );
 }
 
-function OverviewSection({ tasks }: { tasks: Task[] }) {
+/** "+40% more PRs than last quarter" style deltas — shows trajectory, not just a snapshot. */
+function DeltaRow({ current, previous }: { current: Stats & { taskCount: number }; previous: Stats & { taskCount: number } }) {
+  const deltas: { label: string; value: number; isPct: boolean }[] = [];
+
+  if (previous.taskCount > 0) {
+    const pct = Math.round(((current.taskCount - previous.taskCount) / previous.taskCount) * 100);
+    deltas.push({ label: "tasks", value: pct, isPct: true });
+  }
+  if (previous.totalPrs > 0) {
+    const pct = Math.round(((current.totalPrs - previous.totalPrs) / previous.totalPrs) * 100);
+    deltas.push({ label: "PRs merged", value: pct, isPct: true });
+  }
+  const majorDelta = Math.round((current.complexityMajorShare - previous.complexityMajorShare) * 100);
+  if (majorDelta !== 0) {
+    deltas.push({ label: "major-complexity mix", value: majorDelta, isPct: true });
+  }
+
+  if (deltas.length === 0) return null;
+
+  return (
+    <View style={s.deltaRow}>
+      {deltas.map((d) => {
+        const up = d.value >= 0;
+        return (
+          <View key={d.label} style={s.deltaPill}>
+            <Text style={{ ...s.deltaText, ...(up ? s.deltaTextUp : s.deltaTextDown) }}>
+              {up ? "\u2191" : "\u2193"} {Math.abs(d.value)}{d.isPct ? "%" : ""}
+            </Text>
+            <Text style={s.mutedText}>{d.label} vs. previous quarter</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function OverviewSection({ tasks, narrative }: { tasks: Task[]; narrative?: string }) {
   const stats = computeStats(tasks);
   const priorityOrder = ["P1", "P2", "P3", "MINOR"];
   const priorityColors = [COLORS.p1, COLORS.p2, COLORS.p3, COLORS.minor];
@@ -322,18 +429,25 @@ function OverviewSection({ tasks }: { tasks: Task[] }) {
     .slice(0, 10)
     .map(([k]) => k)
     .join("   \u00b7   ");
+  const collaborators = topCollaborators(tasks);
 
   return (
     <>
+      {narrative && narrative.trim() && (
+        <View style={s.narrativeCard} wrap={false}>
+          <Text style={s.narrativeText}>{narrative.trim()}</Text>
+        </View>
+      )}
+
       <SectionHeading>Overview</SectionHeading>
-      <View style={s.overviewRow}>
+      <View style={s.overviewRow} wrap={false}>
         <DonutWithLegend title="By Priority" dataMap={stats.byPriority} order={priorityOrder} colors={priorityColors} size={130} />
         <DonutWithLegend title="By Task Type" dataMap={stats.byTaskType} order={typeOrder} colors={CHART_PALETTE} size={130} />
       </View>
 
       {Object.keys(stats.byMonth).length > 0 && (
         <>
-          <View style={{ height: 20 }} />
+          <View style={{ height: 16 }} />
           <BarChart title="Completed by Month" dataMap={stats.byMonth} chartW={460} chartH={130} barW={40} />
         </>
       )}
@@ -342,6 +456,20 @@ function OverviewSection({ tasks }: { tasks: Task[] }) {
         <>
           <Text style={s.techLabel}>Tech Touched</Text>
           <Text style={s.techLine}>{techLine}</Text>
+        </>
+      )}
+
+      {collaborators.length > 0 && (
+        <>
+          <Text style={s.techLabel}>Top Collaborators</Text>
+          <View style={s.collabRow}>
+            {collaborators.map((c) => (
+              <View key={c.name} style={s.collabPill}>
+                <Text style={s.collabName}>{c.name}</Text>
+                <Text style={s.collabCount}>{"  \u00b7 "}{c.count}</Text>
+              </View>
+            ))}
+          </View>
         </>
       )}
     </>
@@ -376,14 +504,14 @@ function StatStrip({ tasks }: { tasks: Task[] }) {
   );
 }
 
-function CoverPage({ name, title, periodLabel, tasks }: { name: string; title: string; periodLabel: string; tasks: Task[] }) {
+function CoverPage({ name, title, periodLabel, tasks, narrative }: { name: string; title: string; periodLabel: string; tasks: Task[]; narrative?: string }) {
   return (
     <>
       <Text style={s.coverName}>{name}</Text>
       <Text style={s.coverTitle}>{title}</Text>
       <Text style={s.coverPeriod}>{periodLabel}</Text>
       <StatStrip tasks={tasks} />
-      <OverviewSection tasks={tasks} />
+      <OverviewSection tasks={tasks} narrative={narrative} />
     </>
   );
 }
@@ -398,7 +526,7 @@ function LinksCell({ task }: { task: Task }) {
   if (task.designDocLink) {
     links.push(<Text key="doc" style={s.linkText}>View Doc</Text>);
   }
-  if (links.length === 0) links.push(<Text key="none" style={s.mutedText}>\u2014</Text>);
+  if (links.length === 0) links.push(<Text key="none" style={s.mutedText}>{"\u2014"}</Text>);
   return <View style={{ ...s.td, flex: 1.5 }}>{links}</View>;
 }
 
@@ -435,7 +563,7 @@ function TaskTable({ tasks }: { tasks: Task[] }) {
   );
 }
 
-function QuarterSection({ label, tasks }: { label: string; tasks: Task[] }) {
+function QuarterSection({ label, tasks, previousQuarterTasks }: { label: string; tasks: Task[]; previousQuarterTasks?: Task[] }) {
   const byMonth: Record<string, Task[]> = {};
   tasks.forEach((t) => {
     const ref = referenceDate(t);
@@ -445,9 +573,13 @@ function QuarterSection({ label, tasks }: { label: string; tasks: Task[] }) {
   });
   const monthEntries = Object.entries(byMonth).sort(([a], [b]) => b.localeCompare(a));
 
+  const currentStats = { ...computeStats(tasks), taskCount: tasks.length };
+  const previousStats = previousQuarterTasks ? { ...computeStats(previousQuarterTasks), taskCount: previousQuarterTasks.length } : null;
+
   return (
     <>
       <SectionHeading>{label}</SectionHeading>
+      {previousStats && <DeltaRow current={currentStats} previous={previousStats} />}
       <View style={s.quarterMetaTable}>
         <View style={s.quarterMetaHeaderRow}>
           <Text style={s.quarterMetaHeaderCell}>Month</Text>
@@ -469,9 +601,28 @@ function QuarterSection({ label, tasks }: { label: string; tasks: Task[] }) {
   );
 }
 
+function RisksSection({ tasks }: { tasks: Task[] }) {
+  const risks = risksAndBlockers(tasks);
+  if (risks.length === 0) return null;
+  return (
+    <>
+      <SectionHeading>Risks &amp; Blockers Mitigated</SectionHeading>
+      {risks.map((t) => (
+        <View key={t.id} wrap={false}>
+          <Text style={s.riskTitle}>
+            {t.title} <Text style={s.riskTicket}>({t.ticketId})</Text>
+          </Text>
+          <Text style={s.riskNote}>{crisp(t.riskOrBlockerNotes, 220)}</Text>
+        </View>
+      ))}
+    </>
+  );
+}
+
 function HighlightsAndRecognition({ tasks, recognitions }: { tasks: Task[]; recognitions: Recognition[] }) {
   const highlights = tasks.filter((t) => t.highlight);
-  if (highlights.length === 0 && recognitions.length === 0) return null;
+  const risks = risksAndBlockers(tasks);
+  if (highlights.length === 0 && recognitions.length === 0 && risks.length === 0) return null;
 
   return (
     <Page size="A4" style={s.page}>
@@ -488,12 +639,13 @@ function HighlightsAndRecognition({ tasks, recognitions }: { tasks: Task[]; reco
           ))}
         </>
       )}
+      <RisksSection tasks={tasks} />
       {recognitions.length > 0 && (
         <>
           <SectionHeading>Recognition</SectionHeading>
           {recognitions.map((r) => (
             <View key={r.id} wrap={false} style={{ marginBottom: 6 }}>
-              <Text style={s.recognitionMeta}>{r.date} \u2014 {r.source}</Text>
+              <Text style={s.recognitionMeta}>{r.date}{" \u2014 "}{r.source}</Text>
               <Text style={s.recognitionMessage}>{r.message}</Text>
             </View>
           ))}
@@ -515,9 +667,11 @@ export interface ReportOptions {
   profileTitle: string;
   tasks: Task[];
   recognitions: Recognition[];
+  /** Optional 3-4 sentence AI-assisted narrative shown on the cover page. */
+  narrative?: string;
 }
 
-export function ReportDocument({ mode, appraisalType, year, month, profileName, profileTitle, tasks, recognitions }: ReportOptions) {
+export function ReportDocument({ mode, appraisalType, year, month, profileName, profileTitle, tasks, recognitions, narrative }: ReportOptions) {
   const periodLabel =
     mode === "APPRAISAL"
       ? appraisalType === "MIDYEAR"
@@ -531,7 +685,7 @@ export function ReportDocument({ mode, appraisalType, year, month, profileName, 
     return (
       <Document>
         <Page size="A4" style={s.page}>
-          <CoverPage name={profileName} title={profileTitle} periodLabel={periodLabel} tasks={tasks} />
+          <CoverPage name={profileName} title={profileTitle} periodLabel={periodLabel} tasks={tasks} narrative={narrative} />
           <Text style={s.pageFooter} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
         </Page>
         <Page size="A4" style={s.page}>
@@ -556,12 +710,16 @@ export function ReportDocument({ mode, appraisalType, year, month, profileName, 
   return (
     <Document>
       <Page size="A4" style={s.page}>
-        <CoverPage name={profileName} title={profileTitle} periodLabel={periodLabel} tasks={tasks} />
+        <CoverPage name={profileName} title={profileTitle} periodLabel={periodLabel} tasks={tasks} narrative={narrative} />
         <Text style={s.pageFooter} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
       </Page>
-      {quarterKeys.map((q) => (
+      {quarterKeys.map((q, i) => (
         <Page key={q} size="A4" style={s.page}>
-          <QuarterSection label={`Q${q} ${year} Highlights`} tasks={quarters[q]} />
+          <QuarterSection
+            label={`Q${q} ${year} Highlights`}
+            tasks={quarters[q]}
+            previousQuarterTasks={i > 0 ? quarters[quarterKeys[i - 1]] : undefined}
+          />
           <Text style={s.pageFooter} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
         </Page>
       ))}

@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/component
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { priorityBadgeVariant, statusBadgeVariant, statusLabel, monthName } from "@/lib/format";
+import { ActivityHeatmap } from "@/components/ActivityHeatMap";
 
 const CHART_COLORS = ["#3E92CC", "#D4A94A", "#3FB27F", "#E5484D", "#8A93A6", "#6FB8E6", "#E0A82E"];
 
@@ -150,6 +151,8 @@ export function DashboardPage() {
         </Card>
       </div>
 
+      <ActivityHeatmap heatmap={stats.activityHeatmap} />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
@@ -195,4 +198,4 @@ export function DashboardPage() {
       </div>
     </div>
   );
-}
+} 

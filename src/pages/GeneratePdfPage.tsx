@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileDown, CheckSquare, Square } from "lucide-react";
+import { FileDown, CheckSquare, Square, Copy, Check, Sparkles } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { tasksApi, recognitionsApi } from "@/lib/api";
 import type { Task, PdfMode, AppraisalType, Recognition } from "@/types";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -30,6 +31,8 @@ export function GeneratePdfPage() {
 
   const [profileName, setProfileName] = useState(() => localStorage.getItem("impactledger:profileName") ?? "");
   const [profileTitle, setProfileTitle] = useState("");
+  const [narrative, setNarrative] = useState("");
+  const [narrativeCopied, setNarrativeCopied] = useState(false);
 
   const [candidateTasks, setCandidateTasks] = useState<Task[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -82,6 +85,31 @@ export function GeneratePdfPage() {
     }
   }
 
+  const selectedTasksForNarrative = candidateTasks.filter((t) => selectedIds.has(t.id));
+
+  function buildNarrativePrompt(): string {
+    const impactLines = selectedTasksForNarrative
+      .filter((t) => t.impact && t.impact.trim())
+      .map((t) => `- ${t.title} (${t.ticketId}): ${t.impact}`)
+      .join("\n");
+
+    return `Write a 3-4 sentence executive summary paragraph for my appraisal report, based on the work below. Write in third person, past tense, confident but factual — no fluff, no buzzwords. Lead with the most significant initiative. Mention scope/scale where the numbers support it. Do not invent any details not present below.
+
+My name: ${profileName || "the engineer"}
+Period: ${mode === "APPRAISAL" ? `${appraisalType === "MIDYEAR" ? "H1" : "full year"} ${year}` : `${MONTHS[month - 1]} ${year}`}
+
+Completed work with measurable impact:
+${impactLines || "(no impact statements recorded yet for the selected tasks — write a general summary from the titles instead)"}
+
+Return ONLY the paragraph, no preamble, no quotes around it.`;
+  }
+
+  function handleCopyNarrativePrompt() {
+    navigator.clipboard.writeText(buildNarrativePrompt());
+    setNarrativeCopied(true);
+    setTimeout(() => setNarrativeCopied(false), 2000);
+  }
+
   async function handleGenerate() {
     if (selectedIds.size === 0) {
       toast("Select at least one task first", "error");
@@ -115,6 +143,7 @@ export function GeneratePdfPage() {
           profileTitle={profileTitle || "Software Engineer"}
           tasks={selectedTasks}
           recognitions={recognitions}
+          narrative={narrative}
         />
       );
 
@@ -199,6 +228,30 @@ export function GeneratePdfPage() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground -mt-2">Company name is intentionally left off the PDF — only your name and title appear.</p>
+      </Card>
+
+      <Card className="p-5 space-y-3 border-brand/30 bg-brand/5">
+        <div className="flex items-center gap-2 text-sm font-medium text-brand">
+          <Sparkles className="h-4 w-4" />
+          Optional: AI-assisted executive summary
+        </div>
+        <p className="text-xs text-muted">
+          Copy this prompt into Claude / Cursor / Copilot along with the impact statements from your selected tasks, then paste the result below. It'll appear as a short paragraph at the top of the report — the one thing a director skimming a packet is most likely to actually read.
+        </p>
+        <Button type="button" variant="secondary" size="sm" onClick={handleCopyNarrativePrompt}>
+          {narrativeCopied ? <Check className="text-success" /> : <Copy />}
+          {narrativeCopied ? "Copied!" : "Copy narrative prompt"}
+        </Button>
+        <div>
+          <Label htmlFor="narrative">Executive summary (editable, shown on cover page)</Label>
+          <Textarea
+            id="narrative"
+            value={narrative}
+            onChange={(e) => setNarrative(e.target.value)}
+            placeholder="Paste the AI's paragraph here, or write your own..."
+            rows={3}
+          />
+        </div>
       </Card>
 
       <Card className="p-5">

@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Spinner } from "@/components/ui/spinner";
 import { TaskFormDialog } from "@/components/TaskFormDialog";
+import { QuickAddDialog } from "@/components/QuickAddDialog";
 import { priorityBadgeVariant, statusBadgeVariant, statusLabel, formatDate } from "@/lib/format";
 
 export function TasksPage() {
@@ -63,14 +64,17 @@ export function TasksPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
           <p className="text-sm text-muted">Everything you've logged, filterable by anything that matters.</p>
         </div>
-        <Button
-          onClick={() => {
-            setEditingTask(null);
-            setFormOpen(true);
-          }}
-        >
-          <Plus /> Add task
-        </Button>
+        <div className="flex items-center gap-2">
+          <QuickAddDialog onAdded={loadTasks} />
+          <Button
+            onClick={() => {
+              setEditingTask(null);
+              setFormOpen(true);
+            }}
+          >
+            <Plus /> Add task
+          </Button>
+        </div>
       </div>
 
       <Card>
