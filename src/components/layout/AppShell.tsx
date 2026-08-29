@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, ListChecks, FileDown, Award, Sparkles, Menu, X } from "lucide-react";
+import { LayoutDashboard, ListChecks, FileDown, Award, Sparkles, Menu, X, Settings } from "lucide-react";
 import { CompanySwitcher } from "@/components/layout/CompanySwitcher";
 
 const navItems = [
@@ -8,6 +8,7 @@ const navItems = [
   { to: "/tasks", label: "Tasks", icon: ListChecks },
   { to: "/recognition", label: "Recognition", icon: Award },
   { to: "/generate", label: "Generate Report", icon: FileDown },
+  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {

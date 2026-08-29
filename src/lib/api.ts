@@ -66,6 +66,8 @@ export const companiesApi = {
   list: () => request<Company[]>("/api/companies"),
   create: (data: CompanyRequest) =>
     request<Company>("/api/companies", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: number, data: CompanyRequest) =>
+    request<Company>(`/api/companies/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   delete: (id: number) => request<void>(`/api/companies/${id}`, { method: "DELETE" }),
 };
 

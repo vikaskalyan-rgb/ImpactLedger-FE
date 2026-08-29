@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ResponsiveContainer,
   PieChart,
@@ -11,11 +12,12 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { CheckCircle2, GitPullRequest, FileText, Flame, Star } from "lucide-react";
+import { CheckCircle2, GitPullRequest, FileText, Flame, Star, AlertCircle } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { statsApi, tasksApi } from "@/lib/api";
 import type { StatsResponse, Task } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { priorityBadgeVariant, statusBadgeVariant, statusLabel, monthName } from "@/lib/format";
@@ -24,29 +26,36 @@ import { ActivityHeatmap } from "@/components/ActivityHeatMap";
 const CHART_COLORS = ["#3E92CC", "#D4A94A", "#3FB27F", "#E5484D", "#8A93A6", "#6FB8E6", "#E0A82E"];
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const { selectedCompanyId, selectedCompany } = useApp();
   const [stats, setStats] = useState<StatsResponse | null>(null);
-  const [ongoing, setOngoing] = useState<Task[]>([]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!selectedCompanyId) {
       setStats(null);
-      setOngoing([]);
+      setAllTasks([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     Promise.all([
       statsApi.get({ companyId: selectedCompanyId }),
-      tasksApi.search({ companyId: selectedCompanyId, status: "IN_PROGRESS" }),
+      tasksApi.search({ companyId: selectedCompanyId }),
     ])
       .then(([s, tasks]) => {
         setStats(s);
-        setOngoing(tasks);
+        setAllTasks(tasks);
       })
       .finally(() => setLoading(false));
   }, [selectedCompanyId]);
+
+  const ongoing = useMemo(() => allTasks.filter((t) => t.status === "IN_PROGRESS"), [allTasks]);
+  const missingImpact = useMemo(
+    () => allTasks.filter((t) => t.status === "COMPLETED" && (!t.impact || !t.impact.trim())),
+    [allTasks]
+  );
 
   const priorityData = useMemo(
     () => stats ? Object.entries(stats.byPriority).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value })) : [],
@@ -153,6 +162,22 @@ export function DashboardPage() {
 
       <ActivityHeatmap heatmap={stats.activityHeatmap} />
 
+      {missingImpact.length > 0 && (
+        <Card className="border-warning/30 bg-warning/5 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm">
+              <AlertCircle className="h-4 w-4 text-warning shrink-0" />
+              <span>
+                <strong>{missingImpact.length}</strong> completed task{missingImpact.length === 1 ? "" : "s"} {missingImpact.length === 1 ? "doesn't" : "don't"} have an impact statement yet — worth filling in once you can measure the result.
+              </span>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => navigate("/tasks?needsImpact=true")}>
+              Review them
+            </Button>
+          </div>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
@@ -198,4 +223,4 @@ export function DashboardPage() {
       </div>
     </div>
   );
-} 
+}

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import { Plus, Search, Trash2, Pencil, ExternalLink, FileText } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Plus, Search, Trash2, Pencil, ExternalLink, FileText, AlertCircle, Bookmark, X } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { tasksApi } from "@/lib/api";
 import type { Task, TaskFilters, Priority, Complexity, TaskStatus } from "@/types";
@@ -15,14 +16,49 @@ import { TaskFormDialog } from "@/components/TaskFormDialog";
 import { QuickAddDialog } from "@/components/QuickAddDialog";
 import { priorityBadgeVariant, statusBadgeVariant, statusLabel, formatDate } from "@/lib/format";
 
+interface SavedFilter {
+  id: string;
+  name: string;
+  filters: TaskFilters;
+  search: string;
+  needsImpact: boolean;
+}
+
+const SAVED_FILTERS_KEY = "impactledger:savedFilters";
+
+function loadSavedFilters(): SavedFilter[] {
+  try {
+    const raw = localStorage.getItem(SAVED_FILTERS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistSavedFilters(filters: SavedFilter[]) {
+  localStorage.setItem(SAVED_FILTERS_KEY, JSON.stringify(filters));
+}
+
 export function TasksPage() {
   const { selectedCompanyId, toast } = useApp();
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<TaskFilters>({});
   const [search, setSearch] = useState("");
+  const [needsImpact, setNeedsImpact] = useState(searchParams.get("needsImpact") === "true");
   const [formOpen, setFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>(() => loadSavedFilters());
+
+  // Clear the query param once we've consumed it, so it doesn't stick around in the URL
+  useEffect(() => {
+    if (searchParams.get("needsImpact")) {
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadTasks = useCallback(async () => {
     if (!selectedCompanyId) {
@@ -46,6 +82,16 @@ export function TasksPage() {
     loadTasks();
   }, [loadTasks]);
 
+  const visibleTasks = useMemo(
+    () => needsImpact ? tasks.filter((t) => t.status === "COMPLETED" && (!t.impact || !t.impact.trim())) : tasks,
+    [tasks, needsImpact]
+  );
+
+  const missingImpactCount = useMemo(
+    () => tasks.filter((t) => t.status === "COMPLETED" && (!t.impact || !t.impact.trim())).length,
+    [tasks]
+  );
+
   async function handleDelete(task: Task) {
     if (!confirm(`Delete "${task.title}"? This can't be undone.`)) return;
     try {
@@ -56,6 +102,38 @@ export function TasksPage() {
       toast(e instanceof Error ? e.message : "Failed to delete task", "error");
     }
   }
+
+  function clearFilters() {
+    setFilters({});
+    setSearch("");
+    setNeedsImpact(false);
+  }
+
+  function handleSaveFilter() {
+    const name = prompt("Name this filter (e.g. \"P1 this quarter\"):");
+    if (!name || !name.trim()) return;
+    const next: SavedFilter[] = [
+      ...savedFilters,
+      { id: crypto.randomUUID(), name: name.trim(), filters, search, needsImpact },
+    ];
+    setSavedFilters(next);
+    persistSavedFilters(next);
+    toast("Filter saved", "success");
+  }
+
+  function applySavedFilter(saved: SavedFilter) {
+    setFilters(saved.filters);
+    setSearch(saved.search);
+    setNeedsImpact(saved.needsImpact);
+  }
+
+  function removeSavedFilter(id: string) {
+    const next = savedFilters.filter((f) => f.id !== id);
+    setSavedFilters(next);
+    persistSavedFilters(next);
+  }
+
+  const hasActiveFilters = !!(filters.priority || filters.complexity || filters.status || filters.taskType || filters.startDate || filters.endDate || search || needsImpact);
 
   return (
     <div className="space-y-5">
@@ -76,6 +154,20 @@ export function TasksPage() {
           </Button>
         </div>
       </div>
+
+      {missingImpactCount > 0 && !needsImpact && (
+        <Card className="border-warning/30 bg-warning/5 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm">
+              <AlertCircle className="h-4 w-4 text-warning shrink-0" />
+              <span>
+                <strong>{missingImpactCount}</strong> completed task{missingImpactCount === 1 ? "" : "s"} {missingImpactCount === 1 ? "doesn't" : "don't"} have an impact statement yet.
+              </span>
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => setNeedsImpact(true)}>Show them</Button>
+          </div>
+        </Card>
+      )}
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 p-4">
@@ -133,12 +225,41 @@ export function TasksPage() {
             onChange={(e) => setFilters((f) => ({ ...f, endDate: e.target.value || undefined }))}
             className="w-auto"
           />
-          {(filters.priority || filters.complexity || filters.status || filters.taskType || filters.startDate || filters.endDate || search) && (
-            <Button variant="ghost" size="sm" onClick={() => { setFilters({}); setSearch(""); }}>
+          <button
+            type="button"
+            onClick={() => setNeedsImpact((v) => !v)}
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+              needsImpact ? "border-warning bg-warning/15 text-warning" : "border-border text-muted hover:border-warning/50"
+            }`}
+          >
+            Needs impact
+          </button>
+
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
               Clear filters
             </Button>
           )}
+          <Button variant="ghost" size="sm" onClick={handleSaveFilter} className="ml-auto">
+            <Bookmark className="h-3.5 w-3.5" /> Save this filter
+          </Button>
         </div>
+
+        {savedFilters.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3">
+            <span className="text-xs text-muted-foreground">Saved:</span>
+            {savedFilters.map((sf) => (
+              <span key={sf.id} className="flex items-center gap-1 rounded-full bg-surface-hover px-2.5 py-1 text-xs">
+                <button type="button" onClick={() => applySavedFilter(sf)} className="hover:text-brand">
+                  {sf.name}
+                </button>
+                <button type="button" onClick={() => removeSavedFilter(sf.id)}>
+                  <X className="h-3 w-3 text-muted-foreground hover:text-danger" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </Card>
 
       {loading ? (
@@ -147,8 +268,10 @@ export function TasksPage() {
         </div>
       ) : !selectedCompanyId ? (
         <Card className="p-10 text-center text-muted">Add or select a company to get started.</Card>
-      ) : tasks.length === 0 ? (
-        <Card className="p-10 text-center text-muted">No tasks match these filters yet.</Card>
+      ) : visibleTasks.length === 0 ? (
+        <Card className="p-10 text-center text-muted">
+          {needsImpact ? "No completed tasks are missing an impact statement — nicely kept up." : "No tasks match these filters yet."}
+        </Card>
       ) : (
         <Table>
           <TableHeader>
@@ -163,7 +286,7 @@ export function TasksPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tasks.map((task) => (
+            {visibleTasks.map((task) => (
               <TableRow key={task.id}>
                 <TableCell>
                   <div className="font-medium">{task.title}</div>

@@ -5,6 +5,7 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { GeneratePdfPage } from "@/pages/GeneratePdfPage";
 import { RecognitionPage } from "@/pages/RecognitionPage";
+import { SettingsPage } from "./pages/SettingsPage";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
             <Route path="tasks" element={<TasksPage />} />
             <Route path="recognition" element={<RecognitionPage />} />
             <Route path="generate" element={<GeneratePdfPage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
