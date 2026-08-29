@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { FileDown, CheckSquare, Square } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { tasksApi, pdfApi } from "@/lib/api";
-import type { Task, PdfMode, AppraisalType, PdfGenerationRequest } from "@/types";
+import { tasksApi, recognitionsApi } from "@/lib/api";
+import type { Task, PdfMode, AppraisalType, Recognition } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -89,16 +89,36 @@ export function GeneratePdfPage() {
     }
     setGenerating(true);
     try {
-      const payload: PdfGenerationRequest = {
-        mode,
-        year,
-        taskIds: Array.from(selectedIds),
-        companyId: selectedCompanyId ?? undefined,
-        profileName: profileName || undefined,
-        profileTitle: profileTitle || undefined,
-        ...(mode === "APPRAISAL" ? { appraisalType } : { month }),
-      };
-      const blob = await pdfApi.generate(payload);
+      const selectedTasks = candidateTasks.filter((t) => selectedIds.has(t.id));
+
+      // Recognition entries for this same period + company, same filtering the
+      // backend used to do — now done client-side since generation is local.
+      const allRecognitions = await recognitionsApi.list();
+      const recognitions: Recognition[] = allRecognitions.filter(
+        (r) => r.companyId === selectedCompanyId && r.date >= rangeStart && r.date <= rangeEnd
+      );
+
+      // react-pdf is a heavy dependency (~1.2MB) — load it only when actually
+      // generating a PDF, not on every page of the app.
+      const [{ pdf }, { ReportDocument }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("@/lib/pdf/ReportDocument"),
+      ]);
+
+      const doc = (
+        <ReportDocument
+          mode={mode}
+          appraisalType={mode === "APPRAISAL" ? appraisalType : undefined}
+          year={year}
+          month={mode === "MONTHLY" ? month : undefined}
+          profileName={profileName || "Your Name"}
+          profileTitle={profileTitle || "Software Engineer"}
+          tasks={selectedTasks}
+          recognitions={recognitions}
+        />
+      );
+
+      const blob = await pdf(doc).toBlob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
