@@ -66,12 +66,12 @@ export function RecognitionPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Recognition</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Recognition</h1>
           <p className="text-sm text-muted">Shoutouts, kudos, and manager praise — third-party validation that lands well in a review.</p>
         </div>
-        <Button onClick={() => setOpen(true)}><Plus /> Add recognition</Button>
+        <Button onClick={() => setOpen(true)} className="w-full sm:w-auto"><Plus /> Add recognition</Button>
       </div>
 
       {loading ? (
