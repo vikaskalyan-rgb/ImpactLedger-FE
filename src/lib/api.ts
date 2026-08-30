@@ -8,6 +8,8 @@ import type {
   Task,
   TaskFilters,
   TaskRequest,
+  WeeklySummary,
+  WeeklySummaryRequest,
 } from "@/types";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
@@ -116,6 +118,13 @@ export const pdfApi = {
     }
     return res.blob();
   },
+};
+
+export const weeklySummariesApi = {
+  list: (companyId: number) => request<WeeklySummary[]>(`/api/weekly-summaries${buildQuery({ companyId })}`),
+  upsert: (data: WeeklySummaryRequest) =>
+    request<WeeklySummary>("/api/weekly-summaries", { method: "POST", body: JSON.stringify(data) }),
+  delete: (id: number) => request<void>(`/api/weekly-summaries/${id}`, { method: "DELETE" }),
 };
 
 export { ApiError };
