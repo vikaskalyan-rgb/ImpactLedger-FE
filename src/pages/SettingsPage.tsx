@@ -116,7 +116,7 @@ export function SettingsPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-muted">Manage companies, your profile defaults, and back up your data.</p>
       </div>
 
@@ -177,9 +177,9 @@ export function SettingsPage() {
           <div>
             <Label htmlFor="settings-profile-name">Your name</Label>
             <p className="text-xs text-muted-foreground mb-1.5">Shown on the cover page of every generated report. Your title comes from each company's role above instead, since that can change per job.</p>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Input id="settings-profile-name" value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="Vikas" />
-              <Button onClick={handleSaveProfileName} variant="secondary">
+              <Button onClick={handleSaveProfileName} variant="secondary" className="w-full sm:w-auto">
                 {profileSaved ? "Saved!" : <><Save className="h-4 w-4" /> Save</>}
               </Button>
             </div>
@@ -195,12 +195,12 @@ export function SettingsPage() {
           <p className="text-sm text-muted">
             Everything lives on Neon's free tier — cheap insurance against ever losing it. Exports include every company, task, and recognition, not just the currently selected company.
           </p>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => handleExport("json")} disabled={exporting !== null}>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button variant="secondary" onClick={() => handleExport("json")} disabled={exporting !== null} className="w-full sm:w-auto">
               {exporting === "json" ? <Spinner /> : <FileJson />}
               Export as JSON
             </Button>
-            <Button variant="secondary" onClick={() => handleExport("csv")} disabled={exporting !== null}>
+            <Button variant="secondary" onClick={() => handleExport("csv")} disabled={exporting !== null} className="w-full sm:w-auto">
               {exporting === "csv" ? <Spinner /> : <FileSpreadsheet />}
               Export tasks as CSV
             </Button>
