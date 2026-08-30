@@ -3,10 +3,16 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { companiesApi } from "@/lib/api";
 import type { Company } from "@/types";
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: number;
   message: string;
   variant: "success" | "error" | "info";
+  action?: ToastAction;
 }
 
 interface AppContextValue {
@@ -16,7 +22,7 @@ interface AppContextValue {
   selectedCompany: Company | null;
   refreshCompanies: () => Promise<void>;
   loadingCompanies: boolean;
-  toast: (message: string, variant?: Toast["variant"]) => void;
+  toast: (message: string, variant?: Toast["variant"], action?: ToastAction) => void;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -53,10 +59,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (id !== null) localStorage.setItem("impactledger:selectedCompanyId", String(id));
   }, []);
 
-  const toast = useCallback((message: string, variant: Toast["variant"] = "info") => {
+  const toast = useCallback((message: string, variant: Toast["variant"] = "info", action?: ToastAction) => {
     const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, variant }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+    setToasts((prev) => [...prev, { id, message, variant, action }]);
+    // Give actionable toasts (e.g. "Undo") longer on screen than a plain confirmation.
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), action ? 7000 : 4000);
   }, []);
 
   const selectedCompany = useMemo(

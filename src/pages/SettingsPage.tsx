@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Pencil, Trash2, FileJson, FileSpreadsheet, Save } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Pencil, Trash2, FileJson, FileSpreadsheet, Save, Upload, Trash } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { companiesApi, tasksApi, recognitionsApi } from "@/lib/api";
 import type { Company, Task } from "@/types";
@@ -10,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
+import { ImportTasksDialog } from "@/components/ImportTasksDialog";
 
 function downloadBlob(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
@@ -47,6 +49,7 @@ export function SettingsPage() {
   const [profileSaved, setProfileSaved] = useState(false);
 
   const [exporting, setExporting] = useState<"json" | "csv" | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   function openEdit(company: Company) {
     setEditingCompany(company);
@@ -74,10 +77,20 @@ export function SettingsPage() {
   }
 
   async function handleDelete(company: Company) {
-    if (!confirm(`Delete "${company.name}"? Tasks and recognitions logged under it will NOT be deleted, but you won't be able to select this company anymore.`)) return;
     try {
       await companiesApi.delete(company.id);
-      toast("Company deleted", "success");
+      toast(`"${company.name}" deleted — its tasks and recognitions are untouched`, "success", {
+        label: "Undo",
+        onClick: async () => {
+          try {
+            await companiesApi.restore(company.id);
+            toast("Company restored", "success");
+            await refreshCompanies();
+          } catch (e) {
+            toast(e instanceof Error ? e.message : "Failed to restore", "error");
+          }
+        },
+      });
       await refreshCompanies();
     } catch (e) {
       toast(e instanceof Error ? e.message : "Failed to delete company", "error");
@@ -207,6 +220,28 @@ export function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-foreground text-base font-semibold">Import tasks</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted">
+            Bulk-add tasks from a CSV — a backlog of old tickets, or a migration from another company. Uses the same columns as the CSV export above.
+          </p>
+          <Button variant="secondary" onClick={() => setImportOpen(true)} className="w-full sm:w-auto">
+            <Upload className="h-4 w-4" /> Import tasks from CSV
+          </Button>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-center">
+        <Link to="/trash" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+          <Trash className="h-3.5 w-3.5" /> View trash
+        </Link>
+      </div>
+
+      <ImportTasksDialog open={importOpen} onOpenChange={setImportOpen} onImported={() => {}} />
 
       <Dialog open={!!editingCompany} onOpenChange={(open) => !open && setEditingCompany(null)}>
         <DialogContent>

@@ -11,49 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDate } from "@/lib/format";
-
-function getMonday(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function toISODate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function addDays(d: Date, days: number): Date {
-  const next = new Date(d);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function formatWeekRange(start: string, end: string): string {
-  const s = new Date(start + "T00:00:00");
-  const e = new Date(end + "T00:00:00");
-  // Always format both sides with month + day — some ICU implementations produce
-  // a broken fallback string (e.g. "2026 (day: 21)") for a day+year-only pattern
-  // with no month, so that combination must never be used here.
-  const startStr = s.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  const endStr = e.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  const currentYear = new Date().getFullYear();
-  const showYear = e.getFullYear() !== currentYear;
-  return showYear
-    ? `${startStr} \u2013 ${endStr}, ${e.getFullYear()}`
-    : `${startStr} \u2013 ${endStr}`;
-}
-
-function monthKey(dateStr: string): string {
-  return dateStr.slice(0, 7); // "YYYY-MM"
-}
-
-function formatMonthLabel(monthKeyStr: string): string {
-  const [y, m] = monthKeyStr.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
-}
+import { getMonday, toISODate, addDays, formatWeekRange, monthKey, formatMonthLabel } from "@/lib/week";
 
 export function WeeklyLogPage() {
   const { selectedCompanyId, toast } = useApp();

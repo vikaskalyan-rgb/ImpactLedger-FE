@@ -12,9 +12,9 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { CheckCircle2, GitPullRequest, FileText, Flame, Star, AlertCircle } from "lucide-react";
+import { CheckCircle2, GitPullRequest, FileText, Flame, Star, AlertCircle, TrendingUp, TrendingDown, Minus, NotebookPen } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { statsApi, tasksApi } from "@/lib/api";
+import { statsApi, tasksApi, weeklySummariesApi } from "@/lib/api";
 import type { StatsResponse, Task } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,14 +22,56 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { priorityBadgeVariant, statusBadgeVariant, statusLabel, monthName } from "@/lib/format";
 import { ActivityHeatmap } from "@/components/ActivityHeatMap";
+import { lastWeekStart, lastWeekEnd, formatWeekRange } from "@/lib/week";
 
 const CHART_COLORS = ["#3E92CC", "#D4A94A", "#3FB27F", "#E5484D", "#8A93A6", "#6FB8E6", "#E0A82E"];
+
+/** endDate if set, else startDate — matches the convention used for quarter grouping in the PDF. */
+function referenceDate(t: Task): string | null {
+  return t.endDate ?? t.startDate;
+}
+
+interface YearStats {
+  totalTasks: number;
+  completedTasks: number;
+  totalPrs: number;
+  majorCount: number;
+}
+
+function computeYearStats(tasks: Task[], year: number): YearStats {
+  const inYear = tasks.filter((t) => {
+    const ref = referenceDate(t);
+    return ref ? Number(ref.slice(0, 4)) === year : false;
+  });
+  return {
+    totalTasks: inYear.length,
+    completedTasks: inYear.filter((t) => t.status === "COMPLETED").length,
+    totalPrs: inYear.reduce((sum, t) => sum + t.prLinks.length, 0),
+    majorCount: inYear.filter((t) => t.complexity === "MAJOR").length,
+  };
+}
+
+function DeltaBadge({ current, previous }: { current: number; previous: number }) {
+  if (previous === 0) {
+    return current > 0 ? <span className="text-xs text-success">new</span> : null;
+  }
+  const pct = Math.round(((current - previous) / previous) * 100);
+  if (pct === 0) return <span className="flex items-center gap-0.5 text-xs text-muted-foreground"><Minus className="h-3 w-3" /> even</span>;
+  const up = pct > 0;
+  const Icon = up ? TrendingUp : TrendingDown;
+  return (
+    <span className={`flex items-center gap-0.5 text-xs font-medium ${up ? "text-success" : "text-danger"}`}>
+      <Icon className="h-3 w-3" /> {up ? "+" : ""}{pct}%
+    </span>
+  );
+}
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const { selectedCompanyId, selectedCompany } = useApp();
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [hasLastWeekLog, setHasLastWeekLog] = useState(true); // default true so the nudge never flashes before data loads
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,10 +85,12 @@ export function DashboardPage() {
     Promise.all([
       statsApi.get({ companyId: selectedCompanyId }),
       tasksApi.search({ companyId: selectedCompanyId }),
+      weeklySummariesApi.list(selectedCompanyId),
     ])
-      .then(([s, tasks]) => {
+      .then(([s, tasks, weeklyLogs]) => {
         setStats(s);
         setAllTasks(tasks);
+        setHasLastWeekLog(weeklyLogs.some((w) => w.weekStartDate === lastWeekStart()));
       })
       .finally(() => setLoading(false));
   }, [selectedCompanyId]);
@@ -69,6 +113,17 @@ export function DashboardPage() {
     () => stats ? Object.entries(stats.tasksCompletedByMonth).map(([month, value]) => ({ month: monthName(month), value })) : [],
     [stats]
   );
+
+  const { currentYear, previousYear, currentYearStats, previousYearStats } = useMemo(() => {
+    const now = new Date().getFullYear();
+    return {
+      currentYear: now,
+      previousYear: now - 1,
+      currentYearStats: computeYearStats(allTasks, now),
+      previousYearStats: computeYearStats(allTasks, now - 1),
+    };
+  }, [allTasks]);
+  const hasYoyData = currentYearStats.totalTasks > 0 || previousYearStats.totalTasks > 0;
 
   if (loading) {
     return (
@@ -162,6 +217,22 @@ export function DashboardPage() {
 
       <ActivityHeatmap heatmap={stats.activityHeatmap} />
 
+      {!hasLastWeekLog && (
+        <Card className="border-brand/30 bg-brand/5 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 text-sm">
+              <NotebookPen className="h-4 w-4 text-brand shrink-0" />
+              <span>
+                No weekly reflection logged for <strong>{formatWeekRange(lastWeekStart(), lastWeekEnd())}</strong> yet.
+              </span>
+            </div>
+            <Button variant="secondary" size="sm" className="w-full sm:w-auto" onClick={() => navigate("/weekly-log")}>
+              Log it
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {missingImpact.length > 0 && (
         <Card className="border-warning/30 bg-warning/5 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -174,6 +245,38 @@ export function DashboardPage() {
             <Button variant="secondary" size="sm" className="w-full sm:w-auto" onClick={() => navigate("/tasks?needsImpact=true")}>
               Review them
             </Button>
+          </div>
+        </Card>
+      )}
+
+      {hasYoyData && (
+        <Card className="p-5">
+          <h3 className="mb-4 text-sm font-medium text-muted">{previousYear} vs {currentYear}</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Tasks</span>
+                <DeltaBadge current={currentYearStats.totalTasks} previous={previousYearStats.totalTasks} />
+              </div>
+              <p className="text-2xl font-semibold tracking-tight">{currentYearStats.totalTasks}</p>
+              <p className="text-xs text-muted-foreground">{previousYear}: {previousYearStats.totalTasks}</p>
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Completed</span>
+                <DeltaBadge current={currentYearStats.completedTasks} previous={previousYearStats.completedTasks} />
+              </div>
+              <p className="text-2xl font-semibold tracking-tight">{currentYearStats.completedTasks}</p>
+              <p className="text-xs text-muted-foreground">{previousYear}: {previousYearStats.completedTasks}</p>
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">PRs merged</span>
+                <DeltaBadge current={currentYearStats.totalPrs} previous={previousYearStats.totalPrs} />
+              </div>
+              <p className="text-2xl font-semibold tracking-tight">{currentYearStats.totalPrs}</p>
+              <p className="text-xs text-muted-foreground">{previousYear}: {previousYearStats.totalPrs}</p>
+            </div>
           </div>
         </Card>
       )}

@@ -6,6 +6,7 @@ import type {
   RecognitionRequest,
   StatsResponse,
   Task,
+  TaskBulkUpdateRequest,
   TaskFilters,
   TaskRequest,
   WeeklySummary,
@@ -71,6 +72,9 @@ export const companiesApi = {
   update: (id: number, data: CompanyRequest) =>
     request<Company>(`/api/companies/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   delete: (id: number) => request<void>(`/api/companies/${id}`, { method: "DELETE" }),
+  trash: () => request<Company[]>("/api/companies/trash"),
+  restore: (id: number) => request<Company>(`/api/companies/${id}/restore`, { method: "POST" }),
+  purge: (id: number) => request<void>(`/api/companies/${id}/permanent`, { method: "DELETE" }),
 };
 
 export const tasksApi = {
@@ -82,6 +86,13 @@ export const tasksApi = {
   update: (id: number, data: TaskRequest) =>
     request<Task>(`/api/tasks/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   delete: (id: number) => request<void>(`/api/tasks/${id}`, { method: "DELETE" }),
+  trash: (companyId?: number) => request<Task[]>(`/api/tasks/trash${buildQuery({ companyId })}`),
+  restore: (id: number) => request<Task>(`/api/tasks/${id}/restore`, { method: "POST" }),
+  purge: (id: number) => request<void>(`/api/tasks/${id}/permanent`, { method: "DELETE" }),
+  bulkUpdate: (data: TaskBulkUpdateRequest) =>
+    request<Task[]>("/api/tasks/bulk", { method: "PATCH", body: JSON.stringify(data) }),
+  bulkDelete: (ids: number[]) =>
+    request<void>(`/api/tasks/bulk?${ids.map((id) => `ids=${id}`).join("&")}`, { method: "DELETE" }),
 };
 
 export const statsApi = {
@@ -94,6 +105,9 @@ export const recognitionsApi = {
   create: (data: RecognitionRequest) =>
     request<Recognition>("/api/recognitions", { method: "POST", body: JSON.stringify(data) }),
   delete: (id: number) => request<void>(`/api/recognitions/${id}`, { method: "DELETE" }),
+  trash: () => request<Recognition[]>("/api/recognitions/trash"),
+  restore: (id: number) => request<Recognition>(`/api/recognitions/${id}/restore`, { method: "POST" }),
+  purge: (id: number) => request<void>(`/api/recognitions/${id}/permanent`, { method: "DELETE" }),
 };
 
 export const pdfApi = {

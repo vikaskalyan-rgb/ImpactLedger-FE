@@ -38,6 +38,13 @@ export function formatDate(value: string | null | undefined) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+/** For full Instant timestamps (e.g. deletedAt) — formatDate() above is for date-only strings. */
+export function formatDateTime(value: string | null | undefined) {
+  if (!value) return "—";
+  const d = new Date(value);
+  return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} at ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+}
+
 export function monthName(ym: string) {
   // ym = "2026-08"
   const [y, m] = ym.split("-").map(Number);

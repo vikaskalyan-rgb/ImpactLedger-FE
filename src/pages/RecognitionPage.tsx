@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Plus, Award, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Plus, Award, Trash2, Trash } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { recognitionsApi } from "@/lib/api";
 import type { Recognition } from "@/types";
@@ -55,9 +56,24 @@ export function RecognitionPage() {
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("Delete this recognition?")) return;
-    await recognitionsApi.delete(id);
-    load();
+    try {
+      await recognitionsApi.delete(id);
+      toast("Recognition deleted", "success", {
+        label: "Undo",
+        onClick: async () => {
+          try {
+            await recognitionsApi.restore(id);
+            toast("Recognition restored", "success");
+            load();
+          } catch (e) {
+            toast(e instanceof Error ? e.message : "Failed to restore", "error");
+          }
+        },
+      });
+      load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Failed to delete recognition", "error");
+    }
   }
 
   if (!selectedCompanyId) {
@@ -72,6 +88,12 @@ export function RecognitionPage() {
           <p className="text-sm text-muted">Shoutouts, kudos, and manager praise — third-party validation that lands well in a review.</p>
         </div>
         <Button onClick={() => setOpen(true)} className="w-full sm:w-auto"><Plus /> Add recognition</Button>
+      </div>
+
+      <div className="flex justify-end">
+        <Link to="/trash" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+          <Trash className="h-3.5 w-3.5" /> View trash
+        </Link>
       </div>
 
       {loading ? (

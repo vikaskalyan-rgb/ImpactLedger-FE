@@ -16,6 +16,7 @@ export interface Company {
   id: number;
   name: string;
   roleTitle?: string | null;
+  deletedAt?: string | null;
 }
 
 export interface CompanyRequest {
@@ -48,6 +49,13 @@ export interface Task {
   highlight: boolean;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
+}
+
+export interface TaskBulkUpdateRequest {
+  ids: number[];
+  includeInPdf?: boolean;
+  highlight?: boolean;
 }
 
 export interface TaskRequest {
@@ -79,6 +87,7 @@ export interface Recognition {
   date: string;
   source: string;
   message: string;
+  deletedAt?: string | null;
 }
 
 export interface RecognitionRequest {
