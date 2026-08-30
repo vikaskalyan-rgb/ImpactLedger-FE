@@ -58,10 +58,9 @@ function priorityColor(p?: Priority | string | null): string {
   return { P1: COLORS.p1, P2: COLORS.p2, P3: COLORS.p3, MINOR: COLORS.minor }[p as string] ?? COLORS.minor;
 }
 
-function crisp(text: string | null | undefined, limit: number): string {
+function crisp(text: string | null | undefined): string {
   if (!text) return "\u2014";
-  const clean = text.replace(/\s+/g, " ").trim();
-  return clean.length > limit ? clean.slice(0, limit).trim() + "\u2026" : clean;
+  return text.replace(/\s+/g, " ").trim();
 }
 
 function referenceDate(t: Task): string | null {
@@ -512,7 +511,7 @@ function TaskRow({ task }: { task: Task }) {
         <Text style={{ ...s.priorityText, color: priorityColor(task.priority) }}>{task.priority}</Text>
       </View>
       <View style={{ ...s.td, flex: 3.3 }}>
-        <Text>{crisp(task.impact || task.description, 150)}</Text>
+        <Text>{crisp(task.impact || task.description)}</Text>
       </View>
       <LinksCell task={task} />
     </View>
@@ -583,7 +582,7 @@ function RisksSection({ tasks }: { tasks: Task[] }) {
           <Text style={s.riskTitle}>
             {t.title} <Text style={s.riskTicket}>({t.ticketId})</Text>
           </Text>
-          <Text style={s.riskNote}>{crisp(t.riskOrBlockerNotes, 220)}</Text>
+          <Text style={s.riskNote}>{crisp(t.riskOrBlockerNotes)}</Text>
         </View>
       ))}
     </>
@@ -605,7 +604,7 @@ function HighlightsAndRecognition({ tasks, recognitions }: { tasks: Task[]; reco
               <Text style={s.highlightTitle}>
                 {t.title} <Text style={s.highlightTicket}>({t.ticketId})</Text>
               </Text>
-              <Text style={s.highlightImpact}>{crisp(t.impact || t.description, 220)}</Text>
+              <Text style={s.highlightImpact}>{crisp(t.impact || t.description)}</Text>
             </View>
           ))}
         </>
