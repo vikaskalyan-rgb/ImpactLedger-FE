@@ -230,30 +230,6 @@ Return ONLY the paragraph, no preamble, no quotes around it.`;
         <p className="text-xs text-muted-foreground -mt-2">Company name is intentionally left off the PDF — only your name and title appear.</p>
       </Card>
 
-      <Card className="p-5 space-y-3 border-brand/30 bg-brand/5">
-        <div className="flex items-center gap-2 text-sm font-medium text-brand">
-          <Sparkles className="h-4 w-4" />
-          Optional: AI-assisted executive summary
-        </div>
-        <p className="text-xs text-muted">
-          Copy this prompt into Claude / Cursor / Copilot along with the impact statements from your selected tasks, then paste the result below. It'll appear as a short paragraph at the top of the report — the one thing a director skimming a packet is most likely to actually read.
-        </p>
-        <Button type="button" variant="secondary" size="sm" onClick={handleCopyNarrativePrompt}>
-          {narrativeCopied ? <Check className="text-success" /> : <Copy />}
-          {narrativeCopied ? "Copied!" : "Copy narrative prompt"}
-        </Button>
-        <div>
-          <Label htmlFor="narrative">Executive summary (editable, shown on cover page)</Label>
-          <Textarea
-            id="narrative"
-            value={narrative}
-            onChange={(e) => setNarrative(e.target.value)}
-            placeholder="Paste the AI's paragraph here, or write your own..."
-            rows={3}
-          />
-        </div>
-      </Card>
-
       <Card className="p-5">
         <div className="mb-3 flex items-center justify-between">
           <div>
@@ -296,6 +272,30 @@ Return ONLY the paragraph, no preamble, no quotes around it.`;
             ))}
           </div>
         )}
+      </Card>
+
+      <Card className="p-5 space-y-3 border-brand/30 bg-brand/5">
+        <div className="flex items-center gap-2 text-sm font-medium text-brand">
+          <Sparkles className="h-4 w-4" />
+          Optional: AI-assisted executive summary
+        </div>
+        <p className="text-xs text-muted">
+          This prompt already includes the impact statements from the {selectedIds.size || 0} task{selectedIds.size === 1 ? "" : "s"} you selected above, one bullet per task. Copy it into Claude / Cursor / Copilot, then paste the result below — it becomes a short paragraph at the top of the report, the one thing a director skimming a packet is most likely to actually read.
+        </p>
+        <Button type="button" variant="secondary" size="sm" onClick={handleCopyNarrativePrompt} disabled={selectedIds.size === 0}>
+          {narrativeCopied ? <Check className="text-success" /> : <Copy />}
+          {narrativeCopied ? "Copied!" : "Copy narrative prompt"}
+        </Button>
+        <div>
+          <Label htmlFor="narrative">Executive summary (editable, shown on cover page)</Label>
+          <Textarea
+            id="narrative"
+            value={narrative}
+            onChange={(e) => setNarrative(e.target.value)}
+            placeholder="Paste the AI's paragraph here, or write your own..."
+            rows={3}
+          />
+        </div>
       </Card>
 
       <div className="flex justify-end">
