@@ -34,12 +34,12 @@ export function CompanySwitcher() {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full items-center gap-2 sm:w-auto">
       <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
       <Select
         value={selectedCompanyId ?? ""}
         onChange={(e) => setSelectedCompanyId(e.target.value ? Number(e.target.value) : null)}
-        className="min-w-[180px]"
+        className="min-w-0 flex-1 sm:min-w-[180px] sm:flex-none"
       >
         {companies.length === 0 && <option value="">No companies yet</option>}
         {companies.map((c) => (
@@ -51,7 +51,7 @@ export function CompanySwitcher() {
       </Select>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <Button variant="outline" size="icon" onClick={() => setOpen(true)} title="Add company">
+        <Button variant="outline" size="icon" onClick={() => setOpen(true)} title="Add company" className="shrink-0">
           <Plus />
         </Button>
         <DialogContent>
