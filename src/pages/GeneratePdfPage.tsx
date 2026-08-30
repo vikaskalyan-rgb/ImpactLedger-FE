@@ -169,11 +169,11 @@ Return ONLY the paragraph, no preamble, no quotes around it.`;
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Generate Report</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Generate Report</h1>
         <p className="text-sm text-muted">Build a polished PDF for appraisal review, or a quick monthly update for your manager.</p>
       </div>
 
-      <Card className="p-5 space-y-5">
+      <Card className="p-4 sm:p-5 space-y-5">
         <div>
           <Label>Report type</Label>
           <Tabs value={mode} onValueChange={(v) => setMode(v as PdfMode)}>
@@ -185,7 +185,7 @@ Return ONLY the paragraph, no preamble, no quotes around it.`;
         </div>
 
         {mode === "APPRAISAL" ? (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Cycle</Label>
               <Select value={appraisalType} onChange={(e) => setAppraisalType(e.target.value as AppraisalType)}>
@@ -201,7 +201,7 @@ Return ONLY the paragraph, no preamble, no quotes around it.`;
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Month</Label>
               <Select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
@@ -217,7 +217,7 @@ Return ONLY the paragraph, no preamble, no quotes around it.`;
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="profileName">Your name (shown on cover page)</Label>
             <Input id="profileName" value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="Vikas" />
@@ -230,13 +230,13 @@ Return ONLY the paragraph, no preamble, no quotes around it.`;
         <p className="text-xs text-muted-foreground -mt-2">Company name is intentionally left off the PDF — only your name and title appear.</p>
       </Card>
 
-      <Card className="p-5">
-        <div className="mb-3 flex items-center justify-between">
+      <Card className="p-4 sm:p-5">
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-sm font-medium">Select tasks to include</h3>
             <p className="text-xs text-muted-foreground">{candidateTasks.length} tasks found in this period · {selectedIds.size} selected</p>
           </div>
-          <Button variant="secondary" size="sm" onClick={toggleAll}>
+          <Button variant="secondary" size="sm" onClick={toggleAll} className="w-full sm:w-auto">
             {selectedIds.size === candidateTasks.length ? <Square /> : <CheckSquare />}
             {selectedIds.size === candidateTasks.length ? "Deselect all" : "Select all"}
           </Button>
@@ -274,7 +274,7 @@ Return ONLY the paragraph, no preamble, no quotes around it.`;
         )}
       </Card>
 
-      <Card className="p-5 space-y-3 border-brand/30 bg-brand/5">
+      <Card className="p-4 sm:p-5 space-y-3 border-brand/30 bg-brand/5">
         <div className="flex items-center gap-2 text-sm font-medium text-brand">
           <Sparkles className="h-4 w-4" />
           Optional: AI-assisted executive summary
@@ -299,7 +299,7 @@ Return ONLY the paragraph, no preamble, no quotes around it.`;
       </Card>
 
       <div className="flex justify-end">
-        <Button size="lg" onClick={handleGenerate} disabled={generating || selectedIds.size === 0}>
+        <Button size="lg" onClick={handleGenerate} disabled={generating || selectedIds.size === 0} className="w-full sm:w-auto">
           <FileDown /> {generating ? "Generating..." : `Generate PDF (${selectedIds.size} tasks)`}
         </Button>
       </div>
