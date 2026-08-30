@@ -128,3 +128,20 @@ export interface PdfGenerationRequest {
   profileName?: string;
   profileTitle?: string;
 }
+
+export interface WeeklySummary {
+  id: number;
+  companyId: number;
+  weekStartDate: string;
+  weekEndDate: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeeklySummaryRequest {
+  companyId: number;
+  weekStartDate: string;
+  weekEndDate: string;
+  content: string;
+}
