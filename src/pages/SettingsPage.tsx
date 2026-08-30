@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -36,7 +37,7 @@ function tasksToCsv(tasks: Task[]): string {
 }
 
 export function SettingsPage() {
-  const { companies, refreshCompanies, toast } = useApp();
+  const { companies, selectedCompanyId, setSelectedCompanyId, refreshCompanies, toast } = useApp();
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [editName, setEditName] = useState("");
   const [editRoleTitle, setEditRoleTitle] = useState("");
@@ -141,6 +142,30 @@ export function SettingsPage() {
               </div>
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-foreground text-base font-semibold">Default company</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Label htmlFor="settings-default-company">Open the app to this company by default</Label>
+          <p className="text-xs text-muted-foreground -mt-1 mb-1.5">
+            Applies immediately and the next time you open ImpactLedger. You can still switch companies anytime from the top bar.
+          </p>
+          <Select
+            id="settings-default-company"
+            value={selectedCompanyId ?? ""}
+            onChange={(e) => setSelectedCompanyId(e.target.value ? Number(e.target.value) : null)}
+          >
+            {companies.length === 0 && <option value="">No companies yet</option>}
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}{c.roleTitle ? ` · ${c.roleTitle}` : ""}
+              </option>
+            ))}
+          </Select>
         </CardContent>
       </Card>
 
