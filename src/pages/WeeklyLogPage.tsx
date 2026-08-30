@@ -182,11 +182,11 @@ Return ONLY the reflection paragraph, no preamble.`;
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Weekly Log</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Weekly Log</h1>
         <p className="text-sm text-muted">A short AI-assisted reflection each week — over months, a searchable diary of your own reasoning.</p>
       </div>
 
-      <Card className="p-5 space-y-4">
+      <Card className="p-4 sm:p-5 space-y-4">
         <div className="flex items-center justify-between">
           <Button variant="ghost" size="icon" onClick={() => setWeekOffset((o) => o - 1)}>
             <ChevronLeft className="h-4 w-4" />
@@ -221,23 +221,23 @@ Return ONLY the reflection paragraph, no preamble.`;
         </div>
 
         <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={saving || !content.trim()}>
+          <Button onClick={handleSave} disabled={saving || !content.trim()} className="w-full sm:w-auto">
             <Save className="h-4 w-4" /> {saving ? "Saving..." : "Save this week's log"}
           </Button>
         </div>
       </Card>
 
       <div>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-sm font-medium flex items-center gap-2">
             <NotebookPen className="h-4 w-4 text-muted-foreground" /> Past entries
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             {availableMonths.length > 1 && (
               <Select
                 value={monthFilter}
                 onChange={(e) => setMonthFilter(e.target.value)}
-                className="h-8 w-40 text-xs"
+                className="h-8 w-full text-xs sm:w-40"
               >
                 <option value="">All weeks</option>
                 {availableMonths.map((m) => (
@@ -245,7 +245,7 @@ Return ONLY the reflection paragraph, no preamble.`;
                 ))}
               </Select>
             )}
-            <div className="relative w-56">
+            <div className="relative w-full sm:w-56">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 value={search}
