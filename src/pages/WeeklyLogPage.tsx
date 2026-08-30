@@ -6,6 +6,7 @@ import type { Task, WeeklySummary } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
@@ -33,10 +34,25 @@ function addDays(d: Date, days: number): Date {
 function formatWeekRange(start: string, end: string): string {
   const s = new Date(start + "T00:00:00");
   const e = new Date(end + "T00:00:00");
-  const sameMonth = s.getMonth() === e.getMonth();
+  // Always format both sides with month + day — some ICU implementations produce
+  // a broken fallback string (e.g. "2026 (day: 21)") for a day+year-only pattern
+  // with no month, so that combination must never be used here.
   const startStr = s.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  const endStr = e.toLocaleDateString(undefined, sameMonth ? { day: "numeric", year: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
-  return `${startStr} \u2013 ${endStr}`;
+  const endStr = e.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const currentYear = new Date().getFullYear();
+  const showYear = e.getFullYear() !== currentYear;
+  return showYear
+    ? `${startStr} \u2013 ${endStr}, ${e.getFullYear()}`
+    : `${startStr} \u2013 ${endStr}`;
+}
+
+function monthKey(dateStr: string): string {
+  return dateStr.slice(0, 7); // "YYYY-MM"
+}
+
+function formatMonthLabel(monthKeyStr: string): string {
+  const [y, m] = monthKeyStr.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
 export function WeeklyLogPage() {
@@ -52,6 +68,7 @@ export function WeeklyLogPage() {
   const [allLogs, setAllLogs] = useState<WeeklySummary[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [search, setSearch] = useState("");
+  const [monthFilter, setMonthFilter] = useState("");
 
   const weekStart = useMemo(() => toISODate(addDays(getMonday(new Date()), weekOffset * 7)), [weekOffset]);
   const weekEnd = useMemo(() => toISODate(addDays(new Date(weekStart + "T00:00:00"), 6)), [weekStart]);
@@ -143,12 +160,18 @@ Return ONLY the reflection paragraph, no preamble.`;
     setWeekOffset(diffWeeks);
   }
 
-  const filteredLogs = useMemo(
-    () => search.trim()
-      ? allLogs.filter((l) => l.content.toLowerCase().includes(search.toLowerCase()))
-      : allLogs,
-    [allLogs, search]
-  );
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    allLogs.forEach((l) => set.add(monthKey(l.weekStartDate)));
+    return Array.from(set).sort().reverse();
+  }, [allLogs]);
+
+  const filteredLogs = useMemo(() => {
+    let logs = allLogs;
+    if (monthFilter) logs = logs.filter((l) => monthKey(l.weekStartDate) === monthFilter);
+    if (search.trim()) logs = logs.filter((l) => l.content.toLowerCase().includes(search.toLowerCase()));
+    return logs;
+  }, [allLogs, search, monthFilter]);
 
   const isCurrentWeek = weekOffset === 0;
 
@@ -209,14 +232,28 @@ Return ONLY the reflection paragraph, no preamble.`;
           <h2 className="text-sm font-medium flex items-center gap-2">
             <NotebookPen className="h-4 w-4 text-muted-foreground" /> Past entries
           </h2>
-          <div className="relative w-56">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search your logs..."
-              className="h-8 pl-8 text-xs"
-            />
+          <div className="flex items-center gap-2">
+            {availableMonths.length > 1 && (
+              <Select
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                className="h-8 w-40 text-xs"
+              >
+                <option value="">All weeks</option>
+                {availableMonths.map((m) => (
+                  <option key={m} value={m}>{formatMonthLabel(m)}</option>
+                ))}
+              </Select>
+            )}
+            <div className="relative w-56">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search your logs..."
+                className="h-8 pl-8 text-xs"
+              />
+            </div>
           </div>
         </div>
 
@@ -224,7 +261,9 @@ Return ONLY the reflection paragraph, no preamble.`;
           <div className="flex items-center justify-center py-10 text-muted"><Spinner className="mr-2" /> Loading...</div>
         ) : filteredLogs.length === 0 ? (
           <Card className="p-8 text-center text-muted text-sm">
-            {allLogs.length === 0 ? "No weekly logs yet — save your first one above." : "No logs match that search."}
+            {allLogs.length === 0
+              ? "No weekly logs yet — save your first one above."
+              : "No logs match that search or filter."}
           </Card>
         ) : (
           <div className="space-y-2">
