@@ -85,7 +85,7 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
           Welcome back Vikas!
         </h1>
         <p className="text-sm text-muted">Here's the shape of your work at {selectedCompany?.name} as {selectedCompany?.roleTitle ? `${selectedCompany.roleTitle}` : ""}.</p>
@@ -93,28 +93,28 @@ export function DashboardPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0 pb-0">
+          <CardHeader className="flex-row items-center justify-between space-y-0 pb-0 sm:pb-0">
             <CardTitle>Total Tasks</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-brand" />
           </CardHeader>
           <CardContent><CardValue>{stats.totalTasks}</CardValue></CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0 pb-0">
+          <CardHeader className="flex-row items-center justify-between space-y-0 pb-0 sm:pb-0">
             <CardTitle>Completed</CardTitle>
             <Flame className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent><CardValue>{stats.completedTasks}</CardValue></CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0 pb-0">
+          <CardHeader className="flex-row items-center justify-between space-y-0 pb-0 sm:pb-0">
             <CardTitle>PRs Merged</CardTitle>
             <GitPullRequest className="h-4 w-4 text-accent-gold" />
           </CardHeader>
           <CardContent><CardValue>{stats.totalPrs}</CardValue></CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0 pb-0">
+          <CardHeader className="flex-row items-center justify-between space-y-0 pb-0 sm:pb-0">
             <CardTitle>Design Docs</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -164,14 +164,14 @@ export function DashboardPage() {
 
       {missingImpact.length > 0 && (
         <Card className="border-warning/30 bg-warning/5 p-4">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-sm">
               <AlertCircle className="h-4 w-4 text-warning shrink-0" />
               <span>
                 <strong>{missingImpact.length}</strong> completed task{missingImpact.length === 1 ? "" : "s"} {missingImpact.length === 1 ? "doesn't" : "don't"} have an impact statement yet — worth filling in once you can measure the result.
               </span>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => navigate("/tasks?needsImpact=true")}>
+            <Button variant="secondary" size="sm" className="w-full sm:w-auto" onClick={() => navigate("/tasks?needsImpact=true")}>
               Review them
             </Button>
           </div>
