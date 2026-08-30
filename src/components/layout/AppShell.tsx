@@ -99,7 +99,7 @@ export function AppShell() {
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex items-center justify-between border-b border-border bg-surface/60 px-4 md:px-6 py-3.5 backdrop-blur">
+        <header className="flex flex-col gap-3 border-b border-border bg-surface/60 px-4 md:px-6 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-0 sm:py-3.5 backdrop-blur">
           <div className="flex items-center gap-3 md:hidden">
             <button
               onClick={() => setMobileNavOpen(true)}
@@ -113,7 +113,7 @@ export function AppShell() {
           <div className="hidden md:block" />
           <CompanySwitcher />
         </header>
-        <main className="flex-1 overflow-y-auto px-4 md:px-6 py-6">
+        <main className="flex-1 overflow-y-auto px-4 md:px-6 py-5 sm:py-6">
           <Outlet />
         </main>
       </div>
