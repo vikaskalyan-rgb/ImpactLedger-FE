@@ -88,7 +88,7 @@ export function ActivityHeatmap({ heatmap, weeks = 18 }: ActivityHeatmapProps) {
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+      <CardHeader className="flex-row items-center justify-between space-y-0 pb-2 sm:pb-2">
         <CardTitle className="text-foreground text-base font-semibold">Activity</CardTitle>
         {streaks.current > 0 && (
           <div className="flex items-center gap-1.5 text-sm font-medium text-warning">
