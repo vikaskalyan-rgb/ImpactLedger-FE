@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { Plus, Search, Trash2, Pencil, ExternalLink, FileText, AlertCircle, Bookmark, X, Upload, Trash, CheckSquare, Square, FileDown as FileDownIcon, Star, Copy } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, ExternalLink, FileText, AlertCircle, Bookmark, X, Upload, Trash, CheckSquare, Square, FileDown as FileDownIcon, Star, Copy, ClipboardCopy, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { tasksApi } from "@/lib/api";
 import type { Task, TaskFilters, TaskRequest, Priority, Complexity, TaskStatus } from "@/types";
@@ -17,7 +17,8 @@ import { TaskFormDialog } from "@/components/TaskFormDialog";
 import { QuickAddDialog } from "@/components/QuickAddDialog";
 import { ImportTasksDialog } from "@/components/ImportTasksDialog";
 import { InlineEditableBadge } from "@/components/InlineEditableBadge";
-import { priorityBadgeVariant, statusBadgeVariant, statusLabel, formatDate } from "@/lib/format";
+import { TaskDetailDialog } from "@/components/TaskDetailDialog";
+import { priorityBadgeVariant, statusBadgeVariant, statusLabel, formatDate, compareTasks, formatTaskForClipboard, type TaskSortKey } from "@/lib/format";
 import { taskToRequest, cloneOverrides } from "@/lib/taskMapping";
 
 interface SavedFilter {
@@ -43,6 +44,35 @@ function persistSavedFilters(filters: SavedFilter[]) {
   localStorage.setItem(SAVED_FILTERS_KEY, JSON.stringify(filters));
 }
 
+function SortableHead({
+  label,
+  sortKey,
+  activeSort,
+  onSort,
+  className,
+}: {
+  label: string;
+  sortKey: TaskSortKey;
+  activeSort: { key: TaskSortKey; dir: "asc" | "desc" } | null;
+  onSort: (key: TaskSortKey) => void;
+  className?: string;
+}) {
+  const active = activeSort?.key === sortKey;
+  const Icon = active ? (activeSort!.dir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+  return (
+    <TableHead className={className}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`flex items-center gap-1 hover:text-foreground ${active ? "text-foreground" : ""}`}
+      >
+        {label}
+        <Icon className={`h-3 w-3 ${active ? "" : "opacity-30"}`} />
+      </button>
+    </TableHead>
+  );
+}
+
 export function TasksPage() {
   const { selectedCompanyId, toast } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -59,6 +89,9 @@ export function TasksPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [cloneInitialValues, setCloneInitialValues] = useState<TaskRequest | null>(null);
+  const [sort, setSort] = useState<{ key: TaskSortKey; dir: "asc" | "desc" } | null>(null);
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   // Clear the query param once we've consumed it, so it doesn't stick around in the URL
   useEffect(() => {
@@ -110,6 +143,30 @@ export function TasksPage() {
     [tasks]
   );
 
+  const sortedTasks = useMemo(() => {
+    if (!sort) return visibleTasks;
+    const sorted = [...visibleTasks].sort((a, b) => compareTasks(a, b, sort.key));
+    return sort.dir === "desc" ? sorted.reverse() : sorted;
+  }, [visibleTasks, sort]);
+
+  function handleSort(key: TaskSortKey) {
+    setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+  }
+
+  function openDetail(task: Task) {
+    setDetailTask(task);
+    setDetailOpen(true);
+  }
+
+  async function handleCopyAsText(task: Task) {
+    try {
+      await navigator.clipboard.writeText(formatTaskForClipboard(task));
+      toast("Copied to clipboard", "success");
+    } catch {
+      toast("Couldn't copy — your browser may be blocking clipboard access", "error");
+    }
+  }
+
   function handleClone(task: Task) {
     setEditingTask(null);
     setCloneInitialValues(taskToRequest(task, cloneOverrides()));
@@ -138,6 +195,16 @@ export function TasksPage() {
       toast(e instanceof Error ? e.message : "Failed to update task", "error");
       loadTasks();
     }
+  }
+
+  function handleDetailEdit(task: Task) {
+    setDetailOpen(false);
+    handleEditTask(task);
+  }
+
+  function handleDetailClone(task: Task) {
+    setDetailOpen(false);
+    handleClone(task);
   }
 
   function toggleSelect(id: number) {
@@ -440,7 +507,7 @@ export function TasksPage() {
         <>
           {/* Mobile: stacked task cards — a 7-column table has no good way to read on a phone */}
           <div className="space-y-3 sm:hidden">
-            {visibleTasks.map((task) => (
+            {sortedTasks.map((task) => (
               <Card key={task.id} className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
@@ -450,11 +517,16 @@ export function TasksPage() {
                       className="mt-1"
                     />
                     <div className="min-w-0">
-                      <p className="font-medium leading-snug">{task.title}</p>
+                      <button type="button" onClick={() => openDetail(task)} className="text-left font-medium leading-snug hover:text-brand hover:underline">
+                        {task.title}
+                      </button>
                       <p className="text-xs text-muted-foreground">{task.ticketId}</p>
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1 -mr-2 -mt-1">
+                    <Button variant="ghost" size="icon" onClick={() => handleCopyAsText(task)} title="Copy as text">
+                      <ClipboardCopy className="h-4 w-4" />
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={() => handleClone(task)} title="Clone">
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -507,8 +579,8 @@ export function TasksPage() {
 
           {/* Desktop / tablet: full table */}
           <div className="hidden sm:block">
-            <Table>
-              <TableHeader>
+            <Table stickyHeader maxHeight="70vh">
+              <TableHeader className="sticky top-0 z-10">
                 <TableRow>
                   <TableHead className="w-10">
                     <Checkbox
@@ -516,23 +588,25 @@ export function TasksPage() {
                       onCheckedChange={() => toggleSelectAllVisible()}
                     />
                   </TableHead>
-                  <TableHead>Task</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Complexity</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Dates</TableHead>
+                  <SortableHead label="Task" sortKey="title" activeSort={sort} onSort={handleSort} />
+                  <SortableHead label="Priority" sortKey="priority" activeSort={sort} onSort={handleSort} />
+                  <SortableHead label="Complexity" sortKey="complexity" activeSort={sort} onSort={handleSort} />
+                  <SortableHead label="Status" sortKey="status" activeSort={sort} onSort={handleSort} />
+                  <SortableHead label="Dates" sortKey="dates" activeSort={sort} onSort={handleSort} />
                   <TableHead>Links</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleTasks.map((task) => (
+                {sortedTasks.map((task) => (
                   <TableRow key={task.id}>
                     <TableCell>
                       <Checkbox checked={selectedIds.has(task.id)} onCheckedChange={() => toggleSelect(task.id)} />
                     </TableCell>
                     <TableCell>
-                      <div className="font-medium">{task.title}</div>
+                      <button type="button" onClick={() => openDetail(task)} className="text-left font-medium hover:text-brand hover:underline">
+                        {task.title}
+                      </button>
                       <div className="text-xs text-muted-foreground">{task.ticketId}</div>
                       {task.taskTypes.length > 0 && (
                         <div className="mt-1 flex flex-wrap gap-1">
@@ -578,6 +652,9 @@ export function TasksPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleCopyAsText(task)} title="Copy as text">
+                          <ClipboardCopy className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleClone(task)} title="Clone">
                           <Copy className="h-4 w-4" />
                         </Button>
@@ -610,6 +687,15 @@ export function TasksPage() {
         task={editingTask}
         initialValues={cloneInitialValues}
         onSaved={loadTasks}
+      />
+
+      <TaskDetailDialog
+        task={detailTask}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onEdit={handleDetailEdit}
+        onClone={handleDetailClone}
+        onCopy={handleCopyAsText}
       />
     </div>
   );
