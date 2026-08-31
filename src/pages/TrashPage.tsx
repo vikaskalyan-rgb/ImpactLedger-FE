@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Trash2, RotateCcw, ListChecks, Award, Building2 } from "lucide-react";
+import { Trash2, RotateCcw, ListChecks, Award, Building2, ListTodo } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { tasksApi, recognitionsApi, companiesApi } from "@/lib/api";
-import type { Task, Recognition, Company } from "@/types";
+import { tasksApi, recognitionsApi, companiesApi, todosApi } from "@/lib/api";
+import type { Task, Recognition, Company, Todo } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -13,20 +13,23 @@ export function TrashPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [recognitions, setRecognitions] = useState<Recognition[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     try {
-      const [t, r, c] = await Promise.all([
+      const [t, r, c, td] = await Promise.all([
         tasksApi.trash(selectedCompanyId ?? undefined),
         recognitionsApi.trash(),
         companiesApi.trash(),
+        todosApi.trash(selectedCompanyId ?? undefined),
       ]);
       setTasks(t);
       setRecognitions(r.filter((rec) => !selectedCompanyId || rec.companyId === selectedCompanyId));
       setCompanies(c);
+      setTodos(td);
     } catch (e) {
       toast(e instanceof Error ? e.message : "Failed to load trash", "error");
     } finally {
@@ -120,13 +123,40 @@ export function TrashPage() {
     }
   }
 
-  const isEmpty = tasks.length === 0 && recognitions.length === 0 && companies.length === 0;
+  async function restoreTodo(t: Todo) {
+    setBusyId(`todo-${t.id}`);
+    try {
+      await todosApi.restore(t.id);
+      toast("To-do restored", "success");
+      load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Failed to restore", "error");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function purgeTodo(t: Todo) {
+    if (!confirm(`Permanently delete "${t.title}"? This cannot be undone.`)) return;
+    setBusyId(`todo-${t.id}`);
+    try {
+      await todosApi.purge(t.id);
+      toast("To-do permanently deleted", "success");
+      load();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Failed to delete", "error");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const isEmpty = tasks.length === 0 && recognitions.length === 0 && companies.length === 0 && todos.length === 0;
 
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Trash</h1>
-        <p className="text-sm text-muted">Deleted tasks, recognitions, and companies. Restore anything you didn't mean to delete, or clear it for good.</p>
+        <p className="text-sm text-muted">Deleted tasks, to-dos, recognitions, and companies. Restore anything you didn't mean to delete, or clear it for good.</p>
       </div>
 
       {loading ? (
@@ -181,6 +211,32 @@ export function TrashPage() {
                         <RotateCcw className="h-3.5 w-3.5" /> Restore
                       </Button>
                       <Button variant="ghost" size="icon" disabled={busyId === `rec-${r.id}`} onClick={() => purgeRecognition(r)}>
+                        <Trash2 className="h-4 w-4 text-danger" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {todos.length > 0 && (
+            <Card>
+              <div className="flex items-center gap-2 border-b border-border px-4 py-3 text-sm font-medium">
+                <ListTodo className="h-4 w-4 text-muted-foreground" /> To Do ({todos.length})
+              </div>
+              <div className="divide-y divide-border">
+                {todos.map((t) => (
+                  <div key={t.id} className="flex items-start justify-between gap-3 p-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{t.title}</p>
+                      <p className="text-xs text-muted-foreground">deleted {formatDateTime(t.deletedAt)}</p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <Button variant="secondary" size="sm" disabled={busyId === `todo-${t.id}`} onClick={() => restoreTodo(t)}>
+                        <RotateCcw className="h-3.5 w-3.5" /> Restore
+                      </Button>
+                      <Button variant="ghost" size="icon" disabled={busyId === `todo-${t.id}`} onClick={() => purgeTodo(t)}>
                         <Trash2 className="h-4 w-4 text-danger" />
                       </Button>
                     </div>
