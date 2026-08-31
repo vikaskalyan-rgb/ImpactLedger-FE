@@ -30,19 +30,19 @@ const COLORS = {
   mutedForeground: "#8D97A5",
   border: "#E2E5EA",
   borderStrong: "#C9C9C9",
-  brand: "#1D70A8",
-  brandLight: "#6FB8E6",
+  brand: "#0E7C66",
+  brandLight: "#4FBE9E",
   cardBg: "#FAFBFC",
   headerTint: "#F3F6FA",
   p1: "#D33A3A",
   p2: "#B7791F",
-  p3: "#1D70A8",
+  p3: "#7C5CBF",
   minor: "#6B7280",
   success: "#1F8A54",
   gold: "#B8862E",
 };
 
-const CHART_PALETTE = ["#1D70A8", "#3E92CC", "#C9A45C", "#B5657A", "#7A9E7E", "#8A93A6", "#A07AB5"];
+const CHART_PALETTE = ["#0E7C66", "#B8862E", "#1F8A54", "#8A93A6", "#8B5CF6", "#D33A3A", "#0EA5E9"];
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -86,6 +86,15 @@ function lighten(hex: string, amount: number): string {
 
 function gradientId(color: string): string {
   return `grad-${color.replace("#", "")}`;
+}
+
+/** Rough average character width for bold Inter at a given font size — used to
+ * manually position SVG text, since react-pdf's SVG Text doesn't reliably honor
+ * textAnchor="end"/"middle" (confirmed by test-render: it renders left-anchored
+ * regardless), so anything that needs to end or center at a point has to be
+ * pre-shifted rather than relying on that attribute. */
+function estTextWidth(text: string, fontSize: number): number {
+  return text.length * fontSize * 0.58;
 }
 
 // ---- Stats (mirrors the backend's StatsService.buildStats logic) ----
@@ -193,8 +202,7 @@ const s = StyleSheet.create({
   sectionTitle: { fontSize: 12.5, fontWeight: 700 },
   sectionRule: { borderBottomWidth: 1, borderBottomColor: COLORS.borderStrong, marginBottom: 12 },
 
-  overviewRow: { flexDirection: "row", gap: 16 },
-  overviewCol: { flex: 1, backgroundColor: COLORS.cardBg, borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, padding: 12 },
+  overviewCol: { backgroundColor: COLORS.cardBg, borderWidth: 1, borderColor: COLORS.border, borderRadius: 6, padding: 12 },
   chartTitle: { fontSize: 9.5, fontWeight: 700, marginBottom: 8 },
   donutRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   legend: { flexDirection: "column", gap: 5 },
@@ -260,7 +268,7 @@ function SectionHeading({ children }: { children: string }) {
 }
 
 function DonutWithLegend({
-  title, dataMap, order, colors, size = 100,
+  title, dataMap, order, colors, size = 110,
 }: {
   title: string;
   dataMap: Record<string, number>;
@@ -270,43 +278,99 @@ function DonutWithLegend({
 }) {
   const entries = (order ?? Object.keys(dataMap)).filter((k) => dataMap[k] > 0);
   const total = entries.reduce((sum, k) => sum + dataMap[k], 0);
-  const cx = size / 2, cy = size / 2, outerR = size * 0.46, innerR = size * 0.27;
+
+  // Canvas is wider than the ring itself to leave room for the leader-line
+  // labels on both sides — same "pointing outward" layout as the dashboard's
+  // donuts, replacing the old side-list legend. Generous margins because task
+  // type names (e.g. "Migration", "Mentoring") run much longer than "P1"/"P2".
+  const canvasW = size + 220;
+  const canvasH = size + 30;
+  const cx = canvasW / 2;
+  const cy = canvasH / 2;
+  const outerR = size * 0.42;
+  const innerR = size * 0.25;
+  const labelR1 = outerR + 3;
+  const labelR2 = outerR + 22;
+  const labelRunOut = 12;
+
   const usedColors = entries.map((_, i) => colors[i % colors.length]);
+  const unitLabelText = "tasks";
 
   let cursor = 0;
-  const slices = entries.map((key, i) => {
+  const built = entries.map((key, i) => {
     const value = dataMap[key];
     const angle = (value / total) * 360;
+    const midAngle = cursor + angle / 2;
     const path = ringSlicePath(cx, cy, outerR, innerR, cursor, cursor + angle);
     cursor += angle;
     const color = colors[i % colors.length];
-    return <Path key={key} d={path} fill={`url(#${gradientId(color)})`} />;
+
+    const anchor = polarToCartesian(cx, cy, labelR1, midAngle);
+    const elbow = polarToCartesian(cx, cy, labelR2, midAngle);
+    const side: 1 | -1 = elbow.x >= cx ? 1 : -1;
+    const label = { x: elbow.x + side * labelRunOut, y: elbow.y };
+
+    return { key, value, path, color, anchor, elbow, side, label };
+  });
+
+  // Nudge same-side labels apart vertically if they'd otherwise overlap — fine
+  // for the small category counts (3-7) this chart actually renders.
+  ([1, -1] as const).forEach((side) => {
+    const onSide = built.filter((b) => b.side === side).sort((a, b) => a.label.y - b.label.y);
+    for (let i = 1; i < onSide.length; i++) {
+      const minGap = 13;
+      if (onSide[i].label.y - onSide[i - 1].label.y < minGap) {
+        onSide[i].label.y = onSide[i - 1].label.y + minGap;
+      }
+    }
   });
 
   return (
     <View style={s.overviewCol} wrap={false}>
       <Text style={s.chartTitle}>{title}</Text>
-      <View style={s.donutRow}>
-        <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          <GradientDefs colors={usedColors} />
-          {slices}
-        </Svg>
-        <View style={s.legend}>
-          {entries.map((key, i) => {
-            const value = dataMap[key];
-            const pct = Math.round((value / total) * 100);
-            return (
-              <View key={key} style={s.legendRow}>
-                <View style={{ ...s.swatch, backgroundColor: colors[i % colors.length] }} />
-                <View>
-                  <Text style={s.legendLabel}>{key}  {pct}%</Text>
-                  <Text style={s.legendSub}>{value} task{value === 1 ? "" : "s"}</Text>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      </View>
+      <Svg width={canvasW} height={canvasH} viewBox={`0 0 ${canvasW} ${canvasH}`}>
+        <GradientDefs colors={usedColors} />
+        {built.map((b) => <Path key={b.key} d={b.path} fill={`url(#${gradientId(b.color)})`} />)}
+        {built.map((b) => (
+          <Path
+            key={`leader-${b.key}`}
+            d={`M ${b.anchor.x} ${b.anchor.y} L ${b.elbow.x} ${b.elbow.y} L ${b.label.x} ${b.label.y}`}
+            stroke={COLORS.muted}
+            strokeWidth={0.75}
+          />
+        ))}
+        {built.map((b) => {
+          const text = `${b.value} ${b.key}`;
+          const textX = b.side === 1 ? b.label.x + 2 : b.label.x - 2 - estTextWidth(text, 7);
+          return (
+            <Text
+              key={`label-${b.key}`}
+              x={textX}
+              y={b.label.y}
+              style={{ fontSize: 7, fontFamily: "Inter", fontWeight: 700 }}
+              fill={COLORS.ink}
+            >
+              {text}
+            </Text>
+          );
+        })}
+        <Text
+          x={cx - estTextWidth(String(total), 15) / 2}
+          y={cy - 2}
+          style={{ fontSize: 15, fontFamily: "Inter", fontWeight: 700 }}
+          fill={COLORS.ink}
+        >
+          {total}
+        </Text>
+        <Text
+          x={cx - estTextWidth(unitLabelText, 6) / 2}
+          y={cy + 9}
+          style={{ fontSize: 6, fontFamily: "Inter" }}
+          fill={COLORS.mutedForeground}
+        >
+          {unitLabelText}
+        </Text>
+      </Svg>
     </View>
   );
 }
@@ -424,10 +488,9 @@ function OverviewSection({ tasks, narrative }: { tasks: Task[]; narrative?: stri
       )}
 
       <SectionHeading>Overview</SectionHeading>
-      <View style={s.overviewRow} wrap={false}>
-        <DonutWithLegend title="By Priority" dataMap={stats.byPriority} order={priorityOrder} colors={priorityColors} size={130} />
-        <DonutWithLegend title="By Task Type" dataMap={stats.byTaskType} order={typeOrder} colors={CHART_PALETTE} size={130} />
-      </View>
+      <DonutWithLegend title="By Priority" dataMap={stats.byPriority} order={priorityOrder} colors={priorityColors} size={140} />
+      <View style={{ height: 12 }} />
+      <DonutWithLegend title="By Task Type" dataMap={stats.byTaskType} order={typeOrder} colors={CHART_PALETTE} size={140} />
 
       {Object.keys(stats.byMonth).length > 0 && (
         <>
