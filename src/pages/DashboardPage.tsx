@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ResponsiveContainer,
@@ -10,7 +10,6 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
 } from "recharts";
 import { CheckCircle2, GitPullRequest, FileText, Flame, Star, AlertCircle, TrendingUp, TrendingDown, Minus, NotebookPen, History } from "lucide-react";
 import { useApp } from "@/context/AppContext";
@@ -24,7 +23,71 @@ import { priorityBadgeVariant, statusBadgeVariant, statusLabel, monthName, forma
 import { ActivityHeatmap } from "@/components/ActivityHeatMap";
 import { lastWeekStart, lastWeekEnd, formatWeekRange } from "@/lib/week";
 
-const CHART_COLORS = ["#3E92CC", "#D4A94A", "#3FB27F", "#E5484D", "#8A93A6", "#6FB8E6", "#E0A82E"];
+// Two full palettes, not one brightened uniformly — dark-mode colors are picked
+// separately for contrast against a dark surface, same reasoning as the CSS tokens.
+const CATEGORICAL_LIGHT = ["#1D70A8", "#B8862E", "#1F8A54", "#8A93A6", "#8B5CF6", "#D33A3A", "#0EA5E9"];
+const CATEGORICAL_DARK = ["#4A9EDB", "#D9A64D", "#34A874", "#9AA3AF", "#A78BFA", "#E55D5D", "#38BDF8"];
+
+// Priority colors are semantic, not positional — P1 is always the danger red,
+// P2 always warning amber, matching the priority badges used everywhere else in
+// the app, rather than whatever color happens to land at that array index.
+const PRIORITY_COLORS: Record<string, [string, string]> = {
+  P1: ["#D33A3A", "#E55D5D"],
+  P2: ["#B7791F", "#E0A840"],
+  P3: ["#1D70A8", "#4A9EDB"],
+  MINOR: ["#6B7280", "#8B94A3"],
+};
+
+function priorityChartColor(name: string, dark: boolean): string {
+  const pair = PRIORITY_COLORS[name] ?? (dark ? ["#9AA3AF", "#9AA3AF"] : ["#8A93A6", "#8A93A6"]);
+  return dark ? pair[1] : pair[0];
+}
+
+function DonutStatCard({
+  title,
+  data,
+  colorFor,
+  unitLabel,
+  tooltipStyle,
+  footer,
+}: {
+  title: string;
+  data: { name: string; value: number }[];
+  colorFor: (name: string, index: number) => string;
+  unitLabel: string;
+  tooltipStyle: CSSProperties;
+  footer?: ReactNode;
+}) {
+  const total = data.reduce((sum, d) => sum + d.value, 0);
+  return (
+    <Card className="p-5">
+      <h3 className="mb-1 text-sm font-medium text-muted">{title}</h3>
+      <div className="relative">
+        <ResponsiveContainer width="100%" height={200}>
+          <PieChart>
+            <Pie data={data} dataKey="value" nameKey="name" innerRadius={62} outerRadius={86} paddingAngle={2} stroke="none">
+              {data.map((d, i) => <Cell key={d.name} fill={colorFor(d.name, i)} />)}
+            </Pie>
+            <Tooltip contentStyle={tooltipStyle} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-2xl font-semibold text-foreground">{total}</span>
+          <span className="text-xs text-muted-foreground">{unitLabel}</span>
+        </div>
+      </div>
+      <div className="mt-1 flex flex-wrap justify-center gap-x-4 gap-y-1">
+        {data.map((d, i) => (
+          <span key={d.name} className="flex items-center gap-1.5 text-xs text-muted">
+            <span className="h-2 w-2 rounded-sm shrink-0" style={{ background: colorFor(d.name, i) }} />
+            {d.name} &middot; {d.value}
+          </span>
+        ))}
+      </div>
+      {footer}
+    </Card>
+  );
+}
 
 /** endDate if set, else startDate — matches the convention used for quarter grouping in the PDF. */
 function referenceDate(t: Task): string | null {
@@ -100,7 +163,8 @@ function DeltaBadge({ current, previous }: { current: number; previous: number }
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { selectedCompanyId, selectedCompany } = useApp();
+  const { selectedCompanyId, selectedCompany, theme } = useApp();
+  const dark = theme === "dark";
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [hasLastWeekLog, setHasLastWeekLog] = useState(true); // default true so the nudge never flashes before data loads
@@ -157,6 +221,25 @@ export function DashboardPage() {
   }, [allTasks]);
   const hasYoyData = currentYearStats.totalTasks > 0 || previousYearStats.totalTasks > 0;
 
+  const totalTasksTrend = useMemo(() => {
+    if (previousYearStats.totalTasks === 0) return null;
+    return Math.round(((currentYearStats.totalTasks - previousYearStats.totalTasks) / previousYearStats.totalTasks) * 100);
+  }, [currentYearStats, previousYearStats]);
+
+  const tooltipStyle: React.CSSProperties = useMemo(
+    () => ({
+      background: dark ? "#171A1F" : "#FFFFFF",
+      border: `1px solid ${dark ? "#2A2F38" : "#E2E5EA"}`,
+      borderRadius: 8,
+      color: dark ? "#E6E8EB" : "#1A1D23",
+      fontSize: 13,
+    }),
+    [dark]
+  );
+  const axisStroke = dark ? "#6B7280" : "#8D97A5";
+  const barCursorFill = dark ? "#1D2129" : "#F1F3F5";
+  const barFill = dark ? "#4A9EDB" : "#3E92CC";
+
   const onThisDayLastYear = useMemo(() => findOnThisDayLastYear(allTasks), [allTasks]);
 
   if (loading) {
@@ -212,38 +295,40 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="p-5">
-          <h3 className="mb-3 text-sm font-medium text-muted">By Priority</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie data={priorityData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                {priorityData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-              </Pie>
-              <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E5EA", borderRadius: 8, color: "#1A1D23" }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </Card>
-        <Card className="p-5">
-          <h3 className="mb-3 text-sm font-medium text-muted">By Task Type</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie data={typeData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                {typeData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-              </Pie>
-              <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E5EA", borderRadius: 8, color: "#1A1D23" }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </Card>
+        <DonutStatCard
+          title="By Priority"
+          data={priorityData}
+          colorFor={(name) => priorityChartColor(name, dark)}
+          unitLabel="tasks"
+          tooltipStyle={tooltipStyle}
+          footer={
+            hasYoyData && totalTasksTrend !== null && (
+              <p className="mt-3 flex items-center justify-center gap-1 text-sm font-medium text-foreground">
+                {totalTasksTrend >= 0 ? "Up" : "Down"} {Math.abs(totalTasksTrend)}% vs last year
+                {totalTasksTrend >= 0 ? (
+                  <TrendingUp className="h-3.5 w-3.5 text-success" />
+                ) : (
+                  <TrendingDown className="h-3.5 w-3.5 text-danger" />
+                )}
+              </p>
+            )
+          }
+        />
+        <DonutStatCard
+          title="By Task Type"
+          data={typeData}
+          colorFor={(_, i) => (dark ? CATEGORICAL_DARK : CATEGORICAL_LIGHT)[i % CATEGORICAL_LIGHT.length]}
+          unitLabel="tasks"
+          tooltipStyle={tooltipStyle}
+        />
         <Card className="p-5">
           <h3 className="mb-3 text-sm font-medium text-muted">Completed by Month</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={monthData}>
-              <XAxis dataKey="month" stroke="#8D97A5" fontSize={12} />
-              <YAxis stroke="#8D97A5" fontSize={12} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #E2E5EA", borderRadius: 8, color: "#1A1D23" }} cursor={{ fill: "#F1F3F5" }} />
-              <Bar dataKey="value" fill="#3E92CC" radius={[4, 4, 0, 0]} />
+              <XAxis dataKey="month" stroke={axisStroke} fontSize={12} />
+              <YAxis stroke={axisStroke} fontSize={12} allowDecimals={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: barCursorFill }} />
+              <Bar dataKey="value" fill={barFill} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
