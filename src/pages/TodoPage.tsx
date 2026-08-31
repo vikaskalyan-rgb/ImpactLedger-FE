@@ -35,7 +35,7 @@ export function TodoPage() {
     }
     setLoading(true);
     try {
-      setTodos(await todosApi.list(selectedCompanyId));
+      setTodos((await todosApi.list(selectedCompanyId)) ?? []);
     } catch (e) {
       toast(e instanceof Error ? e.message : "Failed to load to-dos", "error");
     } finally {
