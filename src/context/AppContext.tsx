@@ -23,9 +23,18 @@ interface AppContextValue {
   refreshCompanies: () => Promise<void>;
   loadingCompanies: boolean;
   toast: (message: string, variant?: Toast["variant"], action?: ToastAction) => void;
+  theme: "light" | "dark";
+  toggleTheme: () => void;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
+
+function getInitialTheme(): "light" | "dark" {
+  const stored = localStorage.getItem("impactledger:theme");
+  if (stored === "light" || stored === "dark") return stored;
+  // No explicit choice yet — respect the OS preference rather than defaulting blind.
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -35,6 +44,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
   const [loadingCompanies, setLoadingCompanies] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("impactledger:theme", theme);
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  }, []);
 
   const refreshCompanies = useCallback(async () => {
     setLoadingCompanies(true);
@@ -81,6 +100,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         refreshCompanies,
         loadingCompanies,
         toast,
+        theme,
+        toggleTheme,
       }}
     >
       {children}
