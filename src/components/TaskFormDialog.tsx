@@ -46,11 +46,14 @@ export function TaskFormDialog({
   open,
   onOpenChange,
   task,
+  initialValues,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   task?: Task | null;
+  /** Prefills a new (non-edit) task — used by "Clone" to seed the form from an existing task. */
+  initialValues?: TaskRequest | null;
   onSaved: () => void;
 }) {
   const { selectedCompanyId, toast } = useApp();
@@ -82,11 +85,13 @@ export function TaskFormDialog({
           includeInPdf: task.includeInPdf,
           highlight: task.highlight,
         });
+      } else if (initialValues) {
+        setForm({ ...initialValues, companyId: selectedCompanyId ?? initialValues.companyId });
       } else {
         setForm({ ...emptyForm, companyId: selectedCompanyId ?? 0 });
       }
     }
-  }, [open, task, selectedCompanyId]);
+  }, [open, task, initialValues, selectedCompanyId]);
 
   function update<K extends keyof TaskRequest>(key: K, value: TaskRequest[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -128,12 +133,20 @@ export function TaskFormDialog({
     }
   }
 
+  const isCloning = !task && !!initialValues;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="xl">
         <DialogHeader>
-          <DialogTitle>{task ? "Edit task" : "Add a task"}</DialogTitle>
+          <DialogTitle>{task ? "Edit task" : isCloning ? "New task (cloned)" : "Add a task"}</DialogTitle>
         </DialogHeader>
+
+        {isCloning && (
+          <p className="-mt-3 mb-1 text-xs text-muted-foreground">
+            Pre-filled from an existing task. Ticket ID, dates, and impact were left blank on purpose — fill those in for this instance.
+          </p>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
