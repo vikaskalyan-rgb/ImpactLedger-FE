@@ -9,6 +9,8 @@ import type {
   TaskBulkUpdateRequest,
   TaskFilters,
   TaskRequest,
+  Todo,
+  TodoRequest,
   WeeklySummary,
   WeeklySummaryRequest,
 } from "@/types";
@@ -139,6 +141,20 @@ export const weeklySummariesApi = {
   upsert: (data: WeeklySummaryRequest) =>
     request<WeeklySummary>("/api/weekly-summaries", { method: "POST", body: JSON.stringify(data) }),
   delete: (id: number) => request<void>(`/api/weekly-summaries/${id}`, { method: "DELETE" }),
+};
+
+export const todosApi = {
+  list: (companyId: number) => request<Todo[]>(`/api/todos${buildQuery({ companyId })}`),
+  create: (data: TodoRequest) =>
+    request<Todo>("/api/todos", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: number, data: TodoRequest) =>
+    request<Todo>(`/api/todos/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  setCompleted: (id: number, completed: boolean) =>
+    request<Todo>(`/api/todos/${id}/complete${buildQuery({ completed })}`, { method: "PATCH" }),
+  delete: (id: number) => request<void>(`/api/todos/${id}`, { method: "DELETE" }),
+  trash: (companyId?: number) => request<Todo[]>(`/api/todos/trash${buildQuery({ companyId })}`),
+  restore: (id: number) => request<Todo>(`/api/todos/${id}/restore`, { method: "POST" }),
+  purge: (id: number) => request<void>(`/api/todos/${id}/permanent`, { method: "DELETE" }),
 };
 
 export { ApiError };
