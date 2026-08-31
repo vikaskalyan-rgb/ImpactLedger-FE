@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { Plus, Search, Trash2, Pencil, ExternalLink, FileText, AlertCircle, Bookmark, X, Upload, Trash, CheckSquare, Square, FileDown as FileDownIcon, Star } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, ExternalLink, FileText, AlertCircle, Bookmark, X, Upload, Trash, CheckSquare, Square, FileDown as FileDownIcon, Star, Copy } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { tasksApi } from "@/lib/api";
-import type { Task, TaskFilters, Priority, Complexity, TaskStatus } from "@/types";
+import type { Task, TaskFilters, TaskRequest, Priority, Complexity, TaskStatus } from "@/types";
 import { PRIORITIES, COMPLEXITIES, STATUSES, TASK_TYPE_SUGGESTIONS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { TaskFormDialog } from "@/components/TaskFormDialog";
 import { QuickAddDialog } from "@/components/QuickAddDialog";
 import { ImportTasksDialog } from "@/components/ImportTasksDialog";
+import { InlineEditableBadge } from "@/components/InlineEditableBadge";
 import { priorityBadgeVariant, statusBadgeVariant, statusLabel, formatDate } from "@/lib/format";
+import { taskToRequest, cloneOverrides } from "@/lib/taskMapping";
 
 interface SavedFilter {
   id: string;
@@ -56,6 +58,7 @@ export function TasksPage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [importOpen, setImportOpen] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [cloneInitialValues, setCloneInitialValues] = useState<TaskRequest | null>(null);
 
   // Clear the query param once we've consumed it, so it doesn't stick around in the URL
   useEffect(() => {
@@ -106,6 +109,36 @@ export function TasksPage() {
     () => tasks.filter((t) => t.status === "COMPLETED" && (!t.impact || !t.impact.trim())).length,
     [tasks]
   );
+
+  function handleClone(task: Task) {
+    setEditingTask(null);
+    setCloneInitialValues(taskToRequest(task, cloneOverrides()));
+    setFormOpen(true);
+  }
+
+  function handleAddTask() {
+    setEditingTask(null);
+    setCloneInitialValues(null);
+    setFormOpen(true);
+  }
+
+  function handleEditTask(task: Task) {
+    setCloneInitialValues(null);
+    setEditingTask(task);
+    setFormOpen(true);
+  }
+
+  // Optimistic single-field update for the inline priority/status badges — updates
+  // the row immediately, and only falls back to a full reload if the save fails.
+  async function handleInlineUpdate(task: Task, patch: Partial<Pick<TaskRequest, "priority" | "status">>) {
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, ...patch } : t)));
+    try {
+      await tasksApi.update(task.id, taskToRequest(task, patch));
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Failed to update task", "error");
+      loadTasks();
+    }
+  }
 
   function toggleSelect(id: number) {
     setSelectedIds((prev) => {
@@ -245,10 +278,7 @@ export function TasksPage() {
           </div>
           <Button
             className="basis-[calc(50%-0.25rem)] sm:basis-auto sm:flex-none"
-            onClick={() => {
-              setEditingTask(null);
-              setFormOpen(true);
-            }}
+            onClick={handleAddTask}
           >
             <Plus /> Add task
           </Button>
@@ -425,7 +455,10 @@ export function TasksPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1 -mr-2 -mt-1">
-                    <Button variant="ghost" size="icon" onClick={() => { setEditingTask(task); setFormOpen(true); }}>
+                    <Button variant="ghost" size="icon" onClick={() => handleClone(task)} title="Clone">
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleEditTask(task)}>
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(task)}>
@@ -435,8 +468,20 @@ export function TasksPage() {
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                  <Badge variant={priorityBadgeVariant(task.priority)}>{task.priority}</Badge>
-                  <Badge variant={statusBadgeVariant(task.status)}>{statusLabel(task.status)}</Badge>
+                  <InlineEditableBadge
+                    value={task.priority}
+                    options={PRIORITIES}
+                    variant={priorityBadgeVariant}
+                    label={(p) => p}
+                    onChange={(p) => handleInlineUpdate(task, { priority: p })}
+                  />
+                  <InlineEditableBadge
+                    value={task.status}
+                    options={STATUSES}
+                    variant={statusBadgeVariant}
+                    label={statusLabel}
+                    onChange={(s) => handleInlineUpdate(task, { status: s })}
+                  />
                   <span className="text-xs text-muted">{task.complexity}</span>
                   {task.taskTypes.map((t) => (
                     <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>
@@ -498,11 +543,23 @@ export function TasksPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={priorityBadgeVariant(task.priority)}>{task.priority}</Badge>
+                      <InlineEditableBadge
+                        value={task.priority}
+                        options={PRIORITIES}
+                        variant={priorityBadgeVariant}
+                        label={(p) => p}
+                        onChange={(p) => handleInlineUpdate(task, { priority: p })}
+                      />
                     </TableCell>
                     <TableCell className="text-muted">{task.complexity}</TableCell>
                     <TableCell>
-                      <Badge variant={statusBadgeVariant(task.status)}>{statusLabel(task.status)}</Badge>
+                      <InlineEditableBadge
+                        value={task.status}
+                        options={STATUSES}
+                        variant={statusBadgeVariant}
+                        label={statusLabel}
+                        onChange={(s) => handleInlineUpdate(task, { status: s })}
+                      />
                     </TableCell>
                     <TableCell className="text-xs text-muted whitespace-nowrap">
                       {formatDate(task.startDate)} → {formatDate(task.endDate)}
@@ -521,10 +578,13 @@ export function TasksPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleClone(task)} title="Clone">
+                          <Copy className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => { setEditingTask(task); setFormOpen(true); }}
+                          onClick={() => handleEditTask(task)}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -543,8 +603,12 @@ export function TasksPage() {
 
       <TaskFormDialog
         open={formOpen}
-        onOpenChange={setFormOpen}
+        onOpenChange={(open) => {
+          setFormOpen(open);
+          if (!open) setCloneInitialValues(null);
+        }}
         task={editingTask}
+        initialValues={cloneInitialValues}
         onSaved={loadTasks}
       />
     </div>
