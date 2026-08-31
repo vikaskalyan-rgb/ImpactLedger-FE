@@ -12,7 +12,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { CheckCircle2, GitPullRequest, FileText, Flame, Star, AlertCircle, TrendingUp, TrendingDown, Minus, NotebookPen } from "lucide-react";
+import { CheckCircle2, GitPullRequest, FileText, Flame, Star, AlertCircle, TrendingUp, TrendingDown, Minus, NotebookPen, History } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { statsApi, tasksApi, weeklySummariesApi } from "@/lib/api";
 import type { StatsResponse, Task } from "@/types";
@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/component
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { priorityBadgeVariant, statusBadgeVariant, statusLabel, monthName } from "@/lib/format";
+import { priorityBadgeVariant, statusBadgeVariant, statusLabel, monthName, formatDate } from "@/lib/format";
 import { ActivityHeatmap } from "@/components/ActivityHeatMap";
 import { lastWeekStart, lastWeekEnd, formatWeekRange } from "@/lib/week";
 
@@ -49,6 +49,38 @@ function computeYearStats(tasks: Task[], year: number): YearStats {
     totalPrs: inYear.reduce((sum, t) => sum + t.prLinks.length, 0),
     majorCount: inYear.filter((t) => t.complexity === "MAJOR").length,
   };
+}
+
+function daysBetween(a: Date, b: Date): number {
+  return Math.round((a.getTime() - b.getTime()) / 86400000);
+}
+
+/**
+ * Tasks landing close to "this date, one year ago" — an exact-day match would
+ * almost always be empty (nobody logs a task on precisely the right day), so this
+ * widens to a small window and takes the closest few. Window is centered on
+ * (today - 1 year), not on any particular month, so it still works in January.
+ */
+const ON_THIS_DAY_WINDOW_DAYS = 5;
+
+function findOnThisDayLastYear(tasks: Task[]): Task[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const lastYearToday = new Date(today);
+  lastYearToday.setFullYear(lastYearToday.getFullYear() - 1);
+
+  return tasks
+    .map((t) => {
+      const ref = referenceDate(t);
+      if (!ref) return null;
+      const refDate = new Date(ref + "T00:00:00");
+      const diff = Math.abs(daysBetween(refDate, lastYearToday));
+      return diff <= ON_THIS_DAY_WINDOW_DAYS ? { task: t, diff } : null;
+    })
+    .filter((x): x is { task: Task; diff: number } => x !== null)
+    .sort((a, b) => a.diff - b.diff)
+    .slice(0, 4)
+    .map((x) => x.task);
 }
 
 function DeltaBadge({ current, previous }: { current: number; previous: number }) {
@@ -124,6 +156,8 @@ export function DashboardPage() {
     };
   }, [allTasks]);
   const hasYoyData = currentYearStats.totalTasks > 0 || previousYearStats.totalTasks > 0;
+
+  const onThisDayLastYear = useMemo(() => findOnThisDayLastYear(allTasks), [allTasks]);
 
   if (loading) {
     return (
@@ -277,6 +311,26 @@ export function DashboardPage() {
               <p className="text-2xl font-semibold tracking-tight">{currentYearStats.totalPrs}</p>
               <p className="text-xs text-muted-foreground">{previousYear}: {previousYearStats.totalPrs}</p>
             </div>
+          </div>
+        </Card>
+      )}
+
+      {onThisDayLastYear.length > 0 && (
+        <Card className="p-5">
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-muted">
+            <History className="h-4 w-4 text-muted-foreground" /> Around this time last year
+          </h3>
+          <div className="space-y-3">
+            {onThisDayLastYear.map((t) => (
+              <div key={t.id} className="flex items-start justify-between gap-3 border-b border-border-subtle pb-3 last:border-0 last:pb-0">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">{t.title}</p>
+                  <p className="text-xs text-muted-foreground">{t.ticketId} · {formatDate(referenceDate(t))}</p>
+                  {t.impact && <p className="mt-1 text-xs text-muted line-clamp-2">{t.impact}</p>}
+                </div>
+                <Badge variant={priorityBadgeVariant(t.priority)} className="shrink-0">{t.priority}</Badge>
+              </div>
+            ))}
           </div>
         </Card>
       )}
