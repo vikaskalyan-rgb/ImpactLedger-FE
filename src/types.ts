@@ -154,3 +154,23 @@ export interface WeeklySummaryRequest {
   weekEndDate: string;
   content: string;
 }
+
+export interface Todo {
+  id: number;
+  companyId: number;
+  title: string;
+  notes: string | null;
+  dueDate: string | null;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+}
+
+export interface TodoRequest {
+  companyId: number;
+  title: string;
+  notes?: string | null;
+  dueDate?: string | null;
+  completed: boolean;
+}
