@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,9 +60,11 @@ export function TaskFormDialog({
   const { selectedCompanyId, toast } = useApp();
   const [form, setForm] = useState<TaskRequest>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
+      setDuplicateWarning(null);
       if (task) {
         setForm({
           companyId: task.companyId,
@@ -104,6 +107,25 @@ export function TaskFormDialog({
         ? prev.taskTypes.filter((t) => t !== type)
         : [...prev.taskTypes, type],
     }));
+  }
+
+  // Ticket IDs aren't enforced unique in the database — this is a nudge, not a
+  // block, since occasionally reusing an ID on purpose is a valid (if rare) case.
+  // Checked live via search rather than against a locally-held task list, since
+  // whatever list the caller has in memory might be filtered and miss a match.
+  async function checkDuplicateTicketId() {
+    const id = form.ticketId.trim();
+    if (!id || !form.companyId) {
+      setDuplicateWarning(null);
+      return;
+    }
+    try {
+      const matches = await tasksApi.search({ companyId: form.companyId, search: id });
+      const dup = matches.find((t) => t.ticketId.trim().toLowerCase() === id.toLowerCase() && t.id !== task?.id);
+      setDuplicateWarning(dup ? `You already have a task with this ticket ID: "${dup.title}"` : null);
+    } catch {
+      // Non-critical — skip the nudge if the check itself fails.
+    }
   }
 
   async function handleSave() {
@@ -151,7 +173,18 @@ export function TaskFormDialog({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="ticketId">Ticket ID *</Label>
-            <Input id="ticketId" value={form.ticketId} onChange={(e) => update("ticketId", e.target.value)} placeholder="JIRA-1234" />
+            <Input
+              id="ticketId"
+              value={form.ticketId}
+              onChange={(e) => update("ticketId", e.target.value)}
+              onBlur={checkDuplicateTicketId}
+              placeholder="JIRA-1234"
+            />
+            {duplicateWarning && (
+              <p className="mt-1.5 flex items-center gap-1 text-xs text-warning">
+                <AlertTriangle className="h-3 w-3 shrink-0" /> {duplicateWarning}
+              </p>
+            )}
           </div>
           <div>
             <Label htmlFor="title">Title *</Label>
