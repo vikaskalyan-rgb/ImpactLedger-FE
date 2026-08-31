@@ -10,7 +10,16 @@ export const STATUSES: TaskStatus[] = ["NOT_STARTED", "IN_PROGRESS", "BLOCKED", 
 
 export const TASK_TYPE_SUGGESTIONS = [
   "Feature", "Bug", "Design", "Infra", "Migration", "Incident", "Mentoring", "POC",
+  "Hackathon", "Expo", "Culture",
 ];
+
+/**
+ * Task types that count as contribution beyond ticket delivery — hackathons,
+ * expos, mentoring, culture-building. Tag a task with one of these and it
+ * automatically surfaces in the PDF's dedicated section and the dashboard's
+ * "around this time last year" card, no separate tracking needed.
+ */
+export const CULTURE_TASK_TYPES = ["Hackathon", "Expo", "Culture", "Mentoring"];
 
 export interface Company {
   id: number;
