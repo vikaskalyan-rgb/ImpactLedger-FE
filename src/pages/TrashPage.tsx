@@ -26,10 +26,10 @@ export function TrashPage() {
         companiesApi.trash(),
         todosApi.trash(selectedCompanyId ?? undefined),
       ]);
-      setTasks(t);
-      setRecognitions(r.filter((rec) => !selectedCompanyId || rec.companyId === selectedCompanyId));
-      setCompanies(c);
-      setTodos(td);
+      setTasks(t ?? []);
+      setRecognitions((r ?? []).filter((rec) => !selectedCompanyId || rec.companyId === selectedCompanyId));
+      setCompanies(c ?? []);
+      setTodos(td ?? []);
     } catch (e) {
       toast(e instanceof Error ? e.message : "Failed to load trash", "error");
     } finally {
