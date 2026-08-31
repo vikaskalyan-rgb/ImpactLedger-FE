@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, ListChecks, NotebookPen, Award } from "lucide-react";
+import { Search, ListChecks, NotebookPen, Award, ListTodo } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { tasksApi, weeklySummariesApi, recognitionsApi } from "@/lib/api";
-import type { Task, WeeklySummary, Recognition } from "@/types";
+import { tasksApi, weeklySummariesApi, recognitionsApi, todosApi } from "@/lib/api";
+import type { Task, WeeklySummary, Recognition, Todo } from "@/types";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ export function GlobalSearchPage() {
   const [searching, setSearching] = useState(false);
   const [ranQuery, setRanQuery] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [todos, setTodos] = useState<Todo[]>([]);
   const [weeklyLogs, setWeeklyLogs] = useState<WeeklySummary[]>([]);
   const [recognitions, setRecognitions] = useState<Recognition[]>([]);
 
@@ -24,6 +25,7 @@ export function GlobalSearchPage() {
   useEffect(() => {
     if (!query.trim() || !selectedCompanyId) {
       setTasks([]);
+      setTodos([]);
       setWeeklyLogs([]);
       setRecognitions([]);
       setRanQuery("");
@@ -33,12 +35,14 @@ export function GlobalSearchPage() {
     const handle = setTimeout(async () => {
       setSearching(true);
       try {
-        const [taskResults, allWeekly, allRecognitions] = await Promise.all([
+        const [taskResults, allTodos, allWeekly, allRecognitions] = await Promise.all([
           tasksApi.search({ companyId: selectedCompanyId, search: q }),
+          todosApi.list(selectedCompanyId),
           weeklySummariesApi.list(selectedCompanyId),
           recognitionsApi.list(),
         ]);
         setTasks(taskResults);
+        setTodos(allTodos.filter((t) => t.title.toLowerCase().includes(q) || t.notes?.toLowerCase().includes(q)));
         setWeeklyLogs(allWeekly.filter((w) => w.content.toLowerCase().includes(q)));
         setRecognitions(
           allRecognitions.filter(
@@ -53,7 +57,7 @@ export function GlobalSearchPage() {
     return () => clearTimeout(handle);
   }, [query, selectedCompanyId]);
 
-  const hasAnyResults = tasks.length > 0 || weeklyLogs.length > 0 || recognitions.length > 0;
+  const hasAnyResults = tasks.length > 0 || todos.length > 0 || weeklyLogs.length > 0 || recognitions.length > 0;
 
   if (!selectedCompanyId) {
     return <Card className="p-10 text-center text-muted">Select a company first.</Card>;
@@ -63,7 +67,7 @@ export function GlobalSearchPage() {
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Search</h1>
-        <p className="text-sm text-muted">One box, everything you've logged — tasks, weekly reflections, and recognition.</p>
+        <p className="text-sm text-muted">One box, everything you've logged — tasks, to-dos, weekly reflections, and recognition.</p>
       </div>
 
       <div className="relative">
@@ -104,6 +108,28 @@ export function GlobalSearchPage() {
                       <Badge variant={statusBadgeVariant(t.status)}>{statusLabel(t.status)}</Badge>
                     </div>
                     {t.impact && <p className="mt-1.5 text-xs text-muted line-clamp-2">{t.impact}</p>}
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {todos.length > 0 && (
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                <ListTodo className="h-4 w-4 text-muted-foreground" /> To Do
+                <Badge variant="secondary" className="text-[10px]">{todos.length}</Badge>
+                <Link to="/todo" className="ml-auto text-xs text-brand hover:underline">Open To Do →</Link>
+              </div>
+              <div className="space-y-2">
+                {todos.map((t) => (
+                  <Card key={t.id} className="p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={`text-sm font-medium ${t.completed ? "line-through text-muted-foreground" : ""}`}>{t.title}</p>
+                      {t.completed && <Badge variant="secondary" className="text-[10px]">Done</Badge>}
+                    </div>
+                    {t.notes && <p className="mt-1 text-xs text-muted line-clamp-2">{t.notes}</p>}
+                    {t.dueDate && <p className="mt-1 text-xs text-muted-foreground">Due {formatDate(t.dueDate)}</p>}
                   </Card>
                 ))}
               </div>
