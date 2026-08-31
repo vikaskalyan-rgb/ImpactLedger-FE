@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ResponsiveContainer,
@@ -25,8 +25,8 @@ import { lastWeekStart, lastWeekEnd, formatWeekRange } from "@/lib/week";
 
 // Two full palettes, not one brightened uniformly — dark-mode colors are picked
 // separately for contrast against a dark surface, same reasoning as the CSS tokens.
-const CATEGORICAL_LIGHT = ["#1D70A8", "#B8862E", "#1F8A54", "#8A93A6", "#8B5CF6", "#D33A3A", "#0EA5E9"];
-const CATEGORICAL_DARK = ["#4A9EDB", "#D9A64D", "#34A874", "#9AA3AF", "#A78BFA", "#E55D5D", "#38BDF8"];
+const CATEGORICAL_LIGHT = ["#0E7C66", "#B8862E", "#1F8A54", "#8A93A6", "#8B5CF6", "#D33A3A", "#0EA5E9"];
+const CATEGORICAL_DARK = ["#A8A29E", "#D9A64D", "#34A874", "#9AA3AF", "#A78BFA", "#E55D5D", "#38BDF8"];
 
 // Priority colors are semantic, not positional — P1 is always the danger red,
 // P2 always warning amber, matching the priority badges used everywhere else in
@@ -34,7 +34,7 @@ const CATEGORICAL_DARK = ["#4A9EDB", "#D9A64D", "#34A874", "#9AA3AF", "#A78BFA",
 const PRIORITY_COLORS: Record<string, [string, string]> = {
   P1: ["#D33A3A", "#E55D5D"],
   P2: ["#B7791F", "#E0A840"],
-  P3: ["#1D70A8", "#4A9EDB"],
+  P3: ["#7C5CBF", "#A78BFA"],
   MINOR: ["#6B7280", "#8B94A3"],
 };
 
@@ -43,49 +43,172 @@ function priorityChartColor(name: string, dark: boolean): string {
   return dark ? pair[1] : pair[0];
 }
 
-function DonutStatCard({
+/** Lightens a hex color by a fraction (0-1) — used to build the gradient's top-left stop from a base color. */
+function lightenHex(hex: string, amount: number): string {
+  const num = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, (num >> 16) + Math.round(255 * amount));
+  const g = Math.min(255, ((num >> 8) & 0xff) + Math.round(255 * amount));
+  const b = Math.min(255, (num & 0xff) + Math.round(255 * amount));
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
+/**
+ * Hand-built SVG donut instead of Recharts' <Pie> — gives a gradient fill per
+ * segment and a thin inset separator ring for a glossier, layered look, neither
+ * of which Recharts' default flat-fill pie supports.
+ */
+function GlossyDonut({
   title,
   data,
-  colorFor,
+  colors,
   unitLabel,
-  tooltipStyle,
+  surfaceColor,
   footer,
 }: {
   title: string;
   data: { name: string; value: number }[];
-  colorFor: (name: string, index: number) => string;
+  colors: string[];
   unitLabel: string;
-  tooltipStyle: CSSProperties;
+  surfaceColor: string;
   footer?: ReactNode;
 }) {
+  const gradId = useId();
   const total = data.reduce((sum, d) => sum + d.value, 0);
+  const size = 176;
+  const thickness = 24;
+  const center = size / 2;
+  const r = (size - thickness) / 2;
+  const circumference = 2 * Math.PI * r;
+  let cumulative = 0;
+
   return (
     <Card className="p-5">
       <h3 className="mb-1 text-sm font-medium text-muted">{title}</h3>
-      <div className="relative">
-        <ResponsiveContainer width="100%" height={200}>
-          <PieChart>
-            <Pie data={data} dataKey="value" nameKey="name" innerRadius={62} outerRadius={86} paddingAngle={2} stroke="none">
-              {data.map((d, i) => <Cell key={d.name} fill={colorFor(d.name, i)} />)}
-            </Pie>
-            <Tooltip contentStyle={tooltipStyle} />
-          </PieChart>
-        </ResponsiveContainer>
+      <div className="relative mx-auto" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <defs>
+            {data.map((d, i) => (
+              <linearGradient key={d.name} id={`${gradId}-${i}`} x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor={lightenHex(colors[i], 0.18)} />
+                <stop offset="100%" stopColor={colors[i]} />
+              </linearGradient>
+            ))}
+          </defs>
+          {data.map((d, i) => {
+            const frac = total > 0 ? d.value / total : 0;
+            const arcLen = frac * circumference;
+            const dashOffset = -cumulative;
+            cumulative += arcLen;
+            return (
+              <circle
+                key={d.name}
+                cx={center}
+                cy={center}
+                r={r}
+                fill="none"
+                stroke={`url(#${gradId}-${i})`}
+                strokeWidth={thickness}
+                strokeDasharray={`${arcLen} ${circumference - arcLen}`}
+                strokeDashoffset={dashOffset}
+                transform={`rotate(-90 ${center} ${center})`}
+              />
+            );
+          })}
+          {/* Inset separator ring — the glossy "layered" look from the reference design */}
+          <circle cx={center} cy={center} r={r - thickness / 2 + 2} fill="none" stroke={surfaceColor} strokeWidth={3} />
+        </svg>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-2xl font-semibold text-foreground">{total}</span>
           <span className="text-xs text-muted-foreground">{unitLabel}</span>
         </div>
       </div>
-      <div className="mt-1 flex flex-wrap justify-center gap-x-4 gap-y-1">
+      <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
         {data.map((d, i) => (
           <span key={d.name} className="flex items-center gap-1.5 text-xs text-muted">
-            <span className="h-2 w-2 rounded-sm shrink-0" style={{ background: colorFor(d.name, i) }} />
+            <span className="h-2 w-2 rounded-sm shrink-0" style={{ background: colors[i] }} />
             {d.name} &middot; {d.value}
           </span>
         ))}
       </div>
       {footer}
     </Card>
+  );
+}
+
+/** Semicircular gauge for a single percentage — a distinct shape from the donuts so the row reads as varied, not repetitive. */
+function RadialGauge({
+  title,
+  percent,
+  subtitle,
+  color,
+  trackColor,
+}: {
+  title: string;
+  percent: number;
+  subtitle: string;
+  color: string;
+  trackColor: string;
+}) {
+  const gradId = useId();
+  const width = 176;
+  const height = 108;
+  const r = 68;
+  const cx = width / 2;
+  const cy = 92;
+  const arc = `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`;
+  const circumference = Math.PI * r;
+  const filled = (Math.max(0, Math.min(100, percent)) / 100) * circumference;
+
+  return (
+    <Card className="p-5">
+      <h3 className="mb-1 text-sm font-medium text-muted">{title}</h3>
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="mx-auto block">
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor={lightenHex(color, 0.2)} />
+            <stop offset="100%" stopColor={color} />
+          </linearGradient>
+        </defs>
+        <path d={arc} fill="none" stroke={trackColor} strokeWidth={16} strokeLinecap="round" />
+        <path
+          d={arc}
+          fill="none"
+          stroke={`url(#${gradId})`}
+          strokeWidth={16}
+          strokeLinecap="round"
+          strokeDasharray={`${filled} ${circumference - filled}`}
+        />
+        <text x={cx} y={cy - 10} textAnchor="middle" fontSize={26} fontWeight={600} className="fill-foreground">
+          {percent}%
+        </text>
+      </svg>
+      <p className="-mt-1 text-center text-xs text-muted-foreground">{subtitle}</p>
+    </Card>
+  );
+}
+
+/** Small trend line with a soft fill underneath — for the two stat cards where a trend is meaningful. */
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  const gradId = useId();
+  const w = 200;
+  const h = 40;
+  if (data.length < 2) return <div style={{ height: h }} />;
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const stepX = w / (data.length - 1);
+  const points = data.map((v, i) => `${i * stepX},${h - ((v - min) / range) * (h - 4) - 2}`).join(" ");
+  return (
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <polygon points={`0,${h} ${points} ${w},${h}`} fill={`url(#${gradId})`} />
+      <polyline points={points} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
@@ -238,7 +361,27 @@ export function DashboardPage() {
   );
   const axisStroke = dark ? "#6B7280" : "#8D97A5";
   const barCursorFill = dark ? "#1D2129" : "#F1F3F5";
-  const barFill = dark ? "#4A9EDB" : "#3E92CC";
+  const barFill = dark ? "#A8A29E" : "#0E7C66";
+  const surfaceColor = dark ? "#171A1F" : "#FFFFFF";
+  const trackColor = dark ? "#2A2F38" : "#E2E5EA";
+  const successColor = dark ? "#34A874" : "#1F8A54";
+
+  const completionPercent = stats && stats.totalTasks > 0 ? Math.round((stats.completedTasks / stats.totalTasks) * 100) : 0;
+
+  // Trend series for the sparkline stat cards — total tasks by the month they were
+  // logged (endDate, or startDate if not yet finished), and completed-by-month
+  // reusing the same monthly buckets already computed for the bar chart.
+  const totalTasksTrendSeries = useMemo(() => {
+    const counts: Record<string, number> = {};
+    allTasks.forEach((t) => {
+      const ref = referenceDate(t);
+      if (!ref) return;
+      const key = ref.slice(0, 7);
+      counts[key] = (counts[key] ?? 0) + 1;
+    });
+    return Object.keys(counts).sort().slice(-6).map((k) => counts[k]);
+  }, [allTasks]);
+  const completedTrendSeries = useMemo(() => monthData.map((d) => d.value), [monthData]);
 
   const onThisDayLastYear = useMemo(() => findOnThisDayLastYear(allTasks), [allTasks]);
 
@@ -269,14 +412,24 @@ export function DashboardPage() {
             <CardTitle>Total Tasks</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-brand" />
           </CardHeader>
-          <CardContent><CardValue>{stats.totalTasks}</CardValue></CardContent>
+          <CardContent>
+            <CardValue>{stats.totalTasks}</CardValue>
+            <div className="mt-2 -mx-1">
+              <Sparkline data={totalTasksTrendSeries} color={barFill} />
+            </div>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-0 sm:pb-0">
             <CardTitle>Completed</CardTitle>
             <Flame className="h-4 w-4 text-success" />
           </CardHeader>
-          <CardContent><CardValue>{stats.completedTasks}</CardValue></CardContent>
+          <CardContent>
+            <CardValue>{stats.completedTasks}</CardValue>
+            <div className="mt-2 -mx-1">
+              <Sparkline data={completedTrendSeries} color={successColor} />
+            </div>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-0 sm:pb-0">
@@ -294,13 +447,13 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <DonutStatCard
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <GlossyDonut
           title="By Priority"
           data={priorityData}
-          colorFor={(name) => priorityChartColor(name, dark)}
+          colors={priorityData.map((d) => priorityChartColor(d.name, dark))}
           unitLabel="tasks"
-          tooltipStyle={tooltipStyle}
+          surfaceColor={surfaceColor}
           footer={
             hasYoyData && totalTasksTrend !== null && (
               <p className="mt-3 flex items-center justify-center gap-1 text-sm font-medium text-foreground">
@@ -314,21 +467,34 @@ export function DashboardPage() {
             )
           }
         />
-        <DonutStatCard
+        <RadialGauge
+          title="Completion"
+          percent={completionPercent}
+          subtitle={`${stats.completedTasks} of ${stats.totalTasks} done`}
+          color={successColor}
+          trackColor={trackColor}
+        />
+        <GlossyDonut
           title="By Task Type"
           data={typeData}
-          colorFor={(_, i) => (dark ? CATEGORICAL_DARK : CATEGORICAL_LIGHT)[i % CATEGORICAL_LIGHT.length]}
+          colors={typeData.map((_, i) => (dark ? CATEGORICAL_DARK : CATEGORICAL_LIGHT)[i % CATEGORICAL_LIGHT.length])}
           unitLabel="tasks"
-          tooltipStyle={tooltipStyle}
+          surfaceColor={surfaceColor}
         />
         <Card className="p-5">
           <h3 className="mb-3 text-sm font-medium text-muted">Completed by Month</h3>
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={200}>
             <BarChart data={monthData}>
+              <defs>
+                <linearGradient id="dashBarGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={lightenHex(barFill, 0.25)} />
+                  <stop offset="100%" stopColor={barFill} />
+                </linearGradient>
+              </defs>
               <XAxis dataKey="month" stroke={axisStroke} fontSize={12} />
               <YAxis stroke={axisStroke} fontSize={12} allowDecimals={false} />
               <Tooltip contentStyle={tooltipStyle} cursor={{ fill: barCursorFill }} />
-              <Bar dataKey="value" fill={barFill} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="value" fill="url(#dashBarGradient)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
