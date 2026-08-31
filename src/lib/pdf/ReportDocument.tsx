@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Document, Page, View, Text, Svg, Path, Rect, Defs, LinearGradient, Stop, Font, StyleSheet } from "@react-pdf/renderer";
 import type { AppraisalType, PdfMode, Priority, Recognition, Task } from "@/types";
+import { CULTURE_TASK_TYPES } from "@/types";
 
 // Bundled locally via @fontsource/inter (npm install @fontsource/inter) rather than
 // fetched from Google Fonts at PDF-generation time — no dependency on an external
@@ -133,6 +134,12 @@ function computeStats(tasks: Task[]): Stats {
 
 function risksAndBlockers(tasks: Task[]): Task[] {
   return tasks.filter((t) => t.riskOrBlockerNotes && t.riskOrBlockerNotes.trim() !== "");
+}
+
+/** Hackathons, expos, mentoring, culture-building — tagged via the same taskTypes
+ * field as everything else, so nothing new to track, it just surfaces automatically. */
+function cultureContributions(tasks: Task[]): Task[] {
+  return tasks.filter((t) => (t.taskTypes || []).some((tt) => CULTURE_TASK_TYPES.includes(tt)));
 }
 
 // ---- SVG donut chart geometry ----
@@ -652,10 +659,37 @@ function RisksSection({ tasks }: { tasks: Task[] }) {
   );
 }
 
+function CultureSection({ tasks }: { tasks: Task[] }) {
+  const items = cultureContributions(tasks);
+  if (items.length === 0) return null;
+  return (
+    <>
+      <SectionHeading>Culture &amp; Community Contributions</SectionHeading>
+      {items.map((t) => {
+        const tags = (t.taskTypes || []).filter((tt) => CULTURE_TASK_TYPES.includes(tt));
+        return (
+          <View key={t.id} wrap={false}>
+            <Text style={s.highlightTitle}>
+              {t.title} <Text style={s.highlightTicket}>({t.ticketId})</Text>
+            </Text>
+            {tags.length > 0 && (
+              <Text style={{ fontSize: 7, color: COLORS.brand, fontWeight: 700, marginTop: 1, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                {tags.join(" \u00b7 ")}
+              </Text>
+            )}
+            <Text style={s.highlightImpact}>{crisp(t.impact || t.description)}</Text>
+          </View>
+        );
+      })}
+    </>
+  );
+}
+
 function HighlightsAndRecognition({ tasks, recognitions }: { tasks: Task[]; recognitions: Recognition[] }) {
   const highlights = tasks.filter((t) => t.highlight);
   const risks = risksAndBlockers(tasks);
-  if (highlights.length === 0 && recognitions.length === 0 && risks.length === 0) return null;
+  const culture = cultureContributions(tasks);
+  if (highlights.length === 0 && recognitions.length === 0 && risks.length === 0 && culture.length === 0) return null;
 
   return (
     <Page size="A4" style={s.page}>
@@ -672,6 +706,7 @@ function HighlightsAndRecognition({ tasks, recognitions }: { tasks: Task[]; reco
           ))}
         </>
       )}
+      <CultureSection tasks={tasks} />
       <RisksSection tasks={tasks} />
       {recognitions.length > 0 && (
         <>
