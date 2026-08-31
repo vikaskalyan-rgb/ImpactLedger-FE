@@ -1,9 +1,26 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-function Table({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) {
+function Table({
+  className,
+  stickyHeader = false,
+  maxHeight,
+  ...props
+}: React.HTMLAttributes<HTMLTableElement> & { stickyHeader?: boolean; maxHeight?: string }) {
   return (
-    <div className="w-full overflow-x-auto rounded-[var(--radius-card)] border border-border">
+    <div
+      className={cn(
+        "w-full overflow-x-auto rounded-[var(--radius-card)] border border-border",
+        // A sticky <thead> only sticks relative to its nearest scrolling ancestor.
+        // The overflow-x-auto above already makes this div a scroll container (per
+        // the CSS spec, overflow-x:auto forces overflow-y to auto too), so without
+        // a bounded height it never actually scrolls — the header would just
+        // scroll away with the rest of the page. Giving it its own max-height +
+        // overflow-y-auto makes it the thing that scrolls, so sticky works.
+        stickyHeader && "overflow-y-auto"
+      )}
+      style={stickyHeader && maxHeight ? { maxHeight } : undefined}
+    >
       <table className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   );
