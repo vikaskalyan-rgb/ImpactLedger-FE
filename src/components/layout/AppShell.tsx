@@ -1,133 +1,128 @@
-import * as React from "react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { companiesApi } from "@/lib/api";
-import type { Company } from "@/types";
+import { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { LayoutDashboard, ListChecks, FileDown, Award, Sparkles, Menu, X, Settings, NotebookPen, Search, ListTodo } from "lucide-react";
+import { CompanySwitcher } from "@/components/layout/CompanySwitcher";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
-interface ToastAction {
-  label: string;
-  onClick: () => void;
-}
+const navItems = [
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/tasks", label: "Tasks", icon: ListChecks },
+  { to: "/todo", label: "To Do", icon: ListTodo },
+  { to: "/weekly-log", label: "Weekly Log", icon: NotebookPen },
+  { to: "/recognition", label: "Recognition", icon: Award },
+  { to: "/generate", label: "Generate Report", icon: FileDown },
+  { to: "/search", label: "Search", icon: Search },
+  { to: "/settings", label: "Settings", icon: Settings },
+];
 
-interface Toast {
-  id: number;
-  message: string;
-  variant: "success" | "error" | "info";
-  action?: ToastAction;
-}
-
-interface AppContextValue {
-  companies: Company[];
-  selectedCompanyId: number | null;
-  setSelectedCompanyId: (id: number | null) => void;
-  selectedCompany: Company | null;
-  refreshCompanies: () => Promise<void>;
-  loadingCompanies: boolean;
-  toast: (message: string, variant?: Toast["variant"], action?: ToastAction) => void;
-  theme: "light" | "dark";
-  toggleTheme: () => void;
-}
-
-const AppContext = createContext<AppContextValue | undefined>(undefined);
-
-function getInitialTheme(): "light" | "dark" {
-  const stored = localStorage.getItem("impactledger:theme");
-  if (stored === "light" || stored === "dark") return stored;
-  // No explicit choice yet — respect the OS preference rather than defaulting blind.
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [selectedCompanyId, setSelectedCompanyIdState] = useState<number | null>(() => {
-    const stored = localStorage.getItem("impactledger:selectedCompanyId");
-    return stored ? Number(stored) : null;
-  });
-  const [loadingCompanies, setLoadingCompanies] = useState(true);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-    localStorage.setItem("impactledger:theme", theme);
-  }, [theme]);
-
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
-  }, []);
-
-  const refreshCompanies = useCallback(async () => {
-    setLoadingCompanies(true);
-    try {
-      const data = await companiesApi.list();
-      setCompanies(data);
-      if (data.length > 0 && !data.some((c) => c.id === selectedCompanyId)) {
-        setSelectedCompanyIdState(data[0].id);
-      }
-    } finally {
-      setLoadingCompanies(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    refreshCompanies();
-  }, [refreshCompanies]);
-
-  const setSelectedCompanyId = useCallback((id: number | null) => {
-    setSelectedCompanyIdState(id);
-    if (id !== null) localStorage.setItem("impactledger:selectedCompanyId", String(id));
-  }, []);
-
-  const toast = useCallback((message: string, variant: Toast["variant"] = "info", action?: ToastAction) => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, variant, action }]);
-    // Give actionable toasts (e.g. "Undo") longer on screen than a plain confirmation.
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), action ? 7000 : 4000);
-  }, []);
-
-  const selectedCompany = useMemo(
-    () => companies.find((c) => c.id === selectedCompanyId) ?? null,
-    [companies, selectedCompanyId]
+function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <nav className="flex flex-col gap-1 px-3 py-2">
+      {navItems.map(({ to, label, icon: Icon, end }) => (
+        <NavLink
+          key={to}
+          to={to}
+          end={end}
+          onClick={onNavigate}
+          className={({ isActive }) =>
+            `flex items-center gap-3 rounded-[var(--radius-control)] px-3 py-2.5 text-sm font-medium transition-colors ${
+              isActive
+                ? "bg-brand/15 text-brand"
+                : "text-muted hover:bg-surface-hover hover:text-foreground"
+            }`
+          }
+        >
+          <Icon className="h-4 w-4" />
+          {label}
+        </NavLink>
+      ))}
+    </nav>
   );
+}
+
+function BrandMark() {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/15">
+        <Sparkles className="h-4 w-4 text-brand" />
+      </div>
+      <span className="text-lg font-semibold tracking-tight">
+        Impact<span className="text-gradient-brand">Ledger</span>
+      </span>
+    </div>
+  );
+}
+
+export function AppShell() {
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const location = useLocation();
+
+  // Close the drawer automatically whenever the route changes
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
 
   return (
-    <AppContext.Provider
-      value={{
-        companies,
-        selectedCompanyId,
-        setSelectedCompanyId,
-        selectedCompany,
-        refreshCompanies,
-        loadingCompanies,
-        toast,
-        theme,
-        toggleTheme,
-      }}
-    >
-      {children}
-      <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={
-              "rounded-[var(--radius-control)] border px-4 py-2.5 text-sm shadow-lg card-glow " +
-              (t.variant === "success"
-                ? "border-success/30 bg-success/10 text-success"
-                : t.variant === "error"
-                ? "border-danger/30 bg-danger/10 text-danger"
-                : "border-border bg-surface text-foreground")
-            }
-          >
-            {t.message}
-          </div>
-        ))}
-      </div>
-    </AppContext.Provider>
-  );
-}
+    <div className="flex h-screen w-full overflow-hidden bg-background">
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-border bg-surface">
+        <div className="px-5 py-5">
+          <BrandMark />
+        </div>
+        <NavLinks />
+        <div className="mt-auto px-5 py-4 text-xs text-muted-foreground">
+          Every ticket, every decision — evidence for review day.
+        </div>
+      </aside>
 
-export function useApp() {
-  const ctx = useContext(AppContext);
-  if (!ctx) throw new Error("useApp must be used within AppProvider");
-  return ctx;
+      {/* Mobile drawer + backdrop */}
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileNavOpen(false)}
+          />
+          <aside className="absolute left-0 top-0 h-full w-72 flex flex-col bg-surface border-r border-border shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-5">
+              <BrandMark />
+              <button
+                onClick={() => setMobileNavOpen(false)}
+                className="rounded-md p-1.5 text-muted hover:bg-surface-hover hover:text-foreground"
+                aria-label="Close menu"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <NavLinks onNavigate={() => setMobileNavOpen(false)} />
+            <div className="mt-auto px-5 py-4 text-xs text-muted-foreground">
+              Every ticket, every decision — evidence for review day.
+            </div>
+          </aside>
+        </div>
+      )}
+
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <header className="flex flex-col gap-3 border-b border-border bg-surface/60 px-4 md:px-6 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-0 sm:py-3.5 backdrop-blur">
+          <div className="flex items-center gap-3 md:hidden">
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              className="rounded-md p-1.5 text-muted hover:bg-surface-hover hover:text-foreground"
+              aria-label="Open menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <span className="font-semibold">ImpactLedger</span>
+          </div>
+          <div className="hidden md:block" />
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <CompanySwitcher />
+            <ThemeToggle />
+          </div>
+        </header>
+        <main className="flex-1 overflow-y-auto px-4 md:px-6 py-5 sm:py-6">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
 }
