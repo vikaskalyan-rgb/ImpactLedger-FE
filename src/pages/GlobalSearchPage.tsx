@@ -41,11 +41,11 @@ export function GlobalSearchPage() {
           weeklySummariesApi.list(selectedCompanyId),
           recognitionsApi.list(),
         ]);
-        setTasks(taskResults);
-        setTodos(allTodos.filter((t) => t.title.toLowerCase().includes(q) || t.notes?.toLowerCase().includes(q)));
-        setWeeklyLogs(allWeekly.filter((w) => w.content.toLowerCase().includes(q)));
+        setTasks(taskResults ?? []);
+        setTodos((allTodos ?? []).filter((t) => t.title.toLowerCase().includes(q) || t.notes?.toLowerCase().includes(q)));
+        setWeeklyLogs((allWeekly ?? []).filter((w) => w.content.toLowerCase().includes(q)));
         setRecognitions(
-          allRecognitions.filter(
+          (allRecognitions ?? []).filter(
             (r) => r.companyId === selectedCompanyId && (r.message.toLowerCase().includes(q) || r.source.toLowerCase().includes(q))
           )
         );
