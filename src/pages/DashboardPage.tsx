@@ -15,6 +15,7 @@ import { CheckCircle2, GitPullRequest, FileText, Flame, Star, AlertCircle, Trend
 import { useApp } from "@/context/AppContext";
 import { statsApi, tasksApi, weeklySummariesApi } from "@/lib/api";
 import type { StatsResponse, Task } from "@/types";
+import { CULTURE_TASK_TYPES } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -676,16 +677,22 @@ export function DashboardPage() {
             <History className="h-4 w-4 text-muted-foreground" /> Around this time last year
           </h3>
           <div className="space-y-3">
-            {onThisDayLastYear.map((t) => (
-              <div key={t.id} className="flex items-start justify-between gap-3 border-b border-border-subtle pb-3 last:border-0 last:pb-0">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{t.title}</p>
-                  <p className="text-xs text-muted-foreground">{t.ticketId} · {formatDate(referenceDate(t))}</p>
-                  {t.impact && <p className="mt-1 text-xs text-muted line-clamp-2">{t.impact}</p>}
+            {onThisDayLastYear.map((t) => {
+              const cultureTag = t.taskTypes?.find((tt) => CULTURE_TASK_TYPES.includes(tt));
+              return (
+                <div key={t.id} className="flex items-start justify-between gap-3 border-b border-border-subtle pb-3 last:border-0 last:pb-0">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{t.title}</p>
+                    <p className="text-xs text-muted-foreground">{t.ticketId} · {formatDate(referenceDate(t))}</p>
+                    {t.impact && <p className="mt-1 text-xs text-muted line-clamp-2">{t.impact}</p>}
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <Badge variant={priorityBadgeVariant(t.priority)}>{t.priority}</Badge>
+                    {cultureTag && <Badge variant="secondary" className="text-[10px]">{cultureTag}</Badge>}
+                  </div>
                 </div>
-                <Badge variant={priorityBadgeVariant(t.priority)} className="shrink-0">{t.priority}</Badge>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
       )}
