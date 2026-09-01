@@ -126,16 +126,22 @@
 }
 
 /* Chart entrance animations — plain global @keyframes so any component can
-   reference them by name via inline style, regardless of where it's rendered. */
+   reference them by name via inline style, regardless of where it's rendered.
+   Each cycle is 10s: the actual motion happens in the first fraction of it,
+   then holds at the settled state for the rest — so with animation-iteration-
+   count:infinite, the effect replays every 10 seconds instead of playing once. */
 @keyframes chart-pop-in {
-  from { opacity: 0; transform: scale(0.72) rotate(-70deg); }
-  to { opacity: 1; transform: scale(1) rotate(0deg); }
+  0% { opacity: 0; transform: scale(0.72) rotate(-70deg); }
+  7% { opacity: 1; transform: scale(1) rotate(0deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
 }
 @keyframes chart-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  0% { opacity: 0; }
+  5% { opacity: 1; }
+  100% { opacity: 1; }
 }
 @keyframes chart-draw-line {
-  from { stroke-dashoffset: var(--line-length); }
-  to { stroke-dashoffset: 0; }
+  0% { stroke-dashoffset: var(--line-length); }
+  10% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 0; }
 }
