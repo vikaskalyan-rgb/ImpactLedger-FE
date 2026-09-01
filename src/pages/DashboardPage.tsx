@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   ResponsiveContainer,
   PieChart,
@@ -11,13 +11,14 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
-import { CheckCircle2, GitPullRequest, FileText, Flame, Star, AlertCircle, TrendingUp, TrendingDown, Minus, NotebookPen, History } from "lucide-react";
+import { CheckCircle2, GitPullRequest, FileText, Flame, Star, AlertCircle, TrendingUp, TrendingDown, Minus, NotebookPen, History, Search, ListChecks, ListTodo, Award } from "lucide-react";
 import { useApp } from "@/context/AppContext";
-import { statsApi, tasksApi, weeklySummariesApi } from "@/lib/api";
-import type { StatsResponse, Task } from "@/types";
+import { statsApi, tasksApi, weeklySummariesApi, todosApi, recognitionsApi } from "@/lib/api";
+import type { StatsResponse, Task, Todo, WeeklySummary, Recognition } from "@/types";
 import { CULTURE_TASK_TYPES } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle, CardValue } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { priorityBadgeVariant, statusBadgeVariant, statusLabel, monthName, formatDate } from "@/lib/format";
@@ -56,23 +57,30 @@ function lightenHex(hex: string, amount: number): string {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
-/** Animates a number counting up from 0 to its target on mount — used for every big chart number. */
-function useCountUp(target: number, durationMs = 700): number {
+/** Animates a number counting up from 0 to its target — replays every 10s so it
+ * doesn't just play once and go static, matching the chart animations. */
+function useCountUp(target: number, durationMs = 700, repeatMs = 10000): number {
   const [value, setValue] = useState(0);
   useEffect(() => {
     let raf: number;
-    const start = performance.now();
-    const from = 0;
-    function tick(now: number) {
-      const t = Math.min(1, (now - start) / durationMs);
-      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
-      setValue(Math.round(from + (target - from) * eased));
-      if (t < 1) raf = requestAnimationFrame(tick);
+    function playOnce() {
+      const start = performance.now();
+      function tick(now: number) {
+        const t = Math.min(1, (now - start) / durationMs);
+        const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+        setValue(Math.round(target * eased));
+        if (t < 1) raf = requestAnimationFrame(tick);
+      }
+      setValue(0);
+      raf = requestAnimationFrame(tick);
     }
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target]);
+    playOnce();
+    const interval = setInterval(playOnce, repeatMs);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearInterval(interval);
+    };
+  }, [target, durationMs, repeatMs]);
   return value;
 }
 
@@ -161,7 +169,7 @@ function GlossyDonut({
             </linearGradient>
           ))}
         </defs>
-        <g style={{ animation: "chart-pop-in 0.7s cubic-bezier(0.22,1.2,0.36,1) both", transformOrigin: `${cx}px ${cy}px` }}>
+        <g style={{ animation: "chart-pop-in 10s cubic-bezier(0.22,1.2,0.36,1) infinite both", transformOrigin: `${cx}px ${cy}px` }}>
           {segments.map((s, i) => (
             <circle
               key={s.name}
@@ -180,7 +188,7 @@ function GlossyDonut({
           <circle cx={cx} cy={cy} r={r - thickness / 2 + 2} fill="none" stroke={surfaceColor} strokeWidth={3} />
         </g>
         {segments.map((s) => (
-          <g key={s.name} style={{ animation: "chart-fade-in 0.5s ease-out 0.5s both" }}>
+          <g key={s.name} style={{ animation: "chart-fade-in 10s ease-out 0.5s infinite both" }}>
             <polyline
               points={`${s.anchor.x},${s.anchor.y} ${s.elbow.x},${s.elbow.y} ${s.label.x},${s.label.y}`}
               fill="none"
@@ -256,7 +264,7 @@ function RadialGauge({
           strokeWidth={16}
           strokeLinecap="round"
           strokeDasharray={`${filled} ${circumference - filled}`}
-          style={{ animation: "chart-fade-in 0.9s ease-out both" }}
+          style={{ animation: "chart-fade-in 10s ease-out infinite both" }}
         />
         <text x={cx} y={cy - 10} textAnchor="middle" fontSize={26} fontWeight={600} className="fill-foreground">
           {animatedPercent}%
@@ -291,7 +299,7 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
           <stop offset="100%" stopColor={color} stopOpacity={0} />
         </linearGradient>
       </defs>
-      <polygon points={`0,${h} ${points} ${w},${h}`} fill={`url(#${gradId})`} style={{ animation: "chart-fade-in 0.8s ease-out 0.3s both" }} />
+      <polygon points={`0,${h} ${points} ${w},${h}`} fill={`url(#${gradId})`} style={{ animation: "chart-fade-in 10s ease-out 0.3s infinite both" }} />
       <polyline
         points={points}
         fill="none"
@@ -302,7 +310,7 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
         style={{
           strokeDasharray: lineLength,
           strokeDashoffset: lineLength,
-          animation: "chart-draw-line 1s ease-out forwards",
+          animation: "chart-draw-line 10s ease-out infinite",
           ["--line-length" as string]: lineLength,
         }}
       />
@@ -390,6 +398,54 @@ export function DashboardPage() {
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [hasLastWeekLog, setHasLastWeekLog] = useState(true); // default true so the nudge never flashes before data loads
   const [loading, setLoading] = useState(true);
+
+  // Search lives on the dashboard itself now — empty query shows the normal
+  // dashboard, typing replaces it with results, clearing brings the dashboard back.
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [ranQuery, setRanQuery] = useState("");
+  const [searchTasks, setSearchTasks] = useState<Task[]>([]);
+  const [searchTodos, setSearchTodos] = useState<Todo[]>([]);
+  const [searchWeeklyLogs, setSearchWeeklyLogs] = useState<WeeklySummary[]>([]);
+  const [searchRecognitions, setSearchRecognitions] = useState<Recognition[]>([]);
+  const isSearching = query.trim().length > 0;
+
+  useEffect(() => {
+    if (!query.trim() || !selectedCompanyId) {
+      setSearchTasks([]);
+      setSearchTodos([]);
+      setSearchWeeklyLogs([]);
+      setSearchRecognitions([]);
+      setRanQuery("");
+      return;
+    }
+    const q = query.trim().toLowerCase();
+    const handle = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const [taskResults, allTodos, allWeekly, allRecognitions] = await Promise.all([
+          tasksApi.search({ companyId: selectedCompanyId, search: q }),
+          todosApi.list(selectedCompanyId),
+          weeklySummariesApi.list(selectedCompanyId),
+          recognitionsApi.list(),
+        ]);
+        setSearchTasks(taskResults ?? []);
+        setSearchTodos((allTodos ?? []).filter((t) => t.title.toLowerCase().includes(q) || t.notes?.toLowerCase().includes(q)));
+        setSearchWeeklyLogs((allWeekly ?? []).filter((w) => w.content.toLowerCase().includes(q)));
+        setSearchRecognitions(
+          (allRecognitions ?? []).filter(
+            (r) => r.companyId === selectedCompanyId && (r.message.toLowerCase().includes(q) || r.source.toLowerCase().includes(q))
+          )
+        );
+        setRanQuery(query.trim());
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [query, selectedCompanyId]);
+
+  const hasAnySearchResults = searchTasks.length > 0 || searchTodos.length > 0 || searchWeeklyLogs.length > 0 || searchRecognitions.length > 0;
 
   useEffect(() => {
     if (!selectedCompanyId) {
@@ -509,6 +565,110 @@ export function DashboardPage() {
         <p className="text-sm text-muted">Here's the shape of your work at {selectedCompany?.name} as {selectedCompany?.roleTitle ? `${selectedCompany.roleTitle}` : ""}.</p>
       </div>
 
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search tasks, to-dos, weekly logs, recognition..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {isSearching ? (
+        searching && ranQuery !== query.trim() ? (
+          <div className="flex items-center justify-center py-10 text-muted"><Spinner className="mr-2" /> Searching...</div>
+        ) : !hasAnySearchResults ? (
+          <p className="py-10 text-center text-sm text-muted">No results for "{ranQuery}".</p>
+        ) : (
+          <div className="space-y-6 max-w-3xl">
+            {searchTasks.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                  <ListChecks className="h-4 w-4 text-muted-foreground" /> Tasks
+                  <Badge variant="secondary" className="text-[10px]">{searchTasks.length}</Badge>
+                  <Link to="/tasks" className="ml-auto text-xs text-brand hover:underline">Open Tasks →</Link>
+                </div>
+                <div className="space-y-2">
+                  {searchTasks.map((t) => (
+                    <Card key={t.id} className="p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium">{t.title}</p>
+                        <Badge variant={priorityBadgeVariant(t.priority)}>{t.priority}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{t.ticketId} · {formatDate(t.startDate)} → {formatDate(t.endDate)}</p>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <Badge variant={statusBadgeVariant(t.status)}>{statusLabel(t.status)}</Badge>
+                      </div>
+                      {t.impact && <p className="mt-1.5 text-xs text-muted line-clamp-2">{t.impact}</p>}
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {searchTodos.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                  <ListTodo className="h-4 w-4 text-muted-foreground" /> To Do
+                  <Badge variant="secondary" className="text-[10px]">{searchTodos.length}</Badge>
+                  <Link to="/todo" className="ml-auto text-xs text-brand hover:underline">Open To Do →</Link>
+                </div>
+                <div className="space-y-2">
+                  {searchTodos.map((t) => (
+                    <Card key={t.id} className="p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className={`text-sm font-medium ${t.completed ? "line-through text-muted-foreground" : ""}`}>{t.title}</p>
+                        {t.completed && <Badge variant="secondary" className="text-[10px]">Done</Badge>}
+                      </div>
+                      {t.notes && <p className="mt-1 text-xs text-muted line-clamp-2">{t.notes}</p>}
+                      {t.dueDate && <p className="mt-1 text-xs text-muted-foreground">Due {formatDate(t.dueDate)}</p>}
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {searchWeeklyLogs.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                  <NotebookPen className="h-4 w-4 text-muted-foreground" /> Weekly Log
+                  <Badge variant="secondary" className="text-[10px]">{searchWeeklyLogs.length}</Badge>
+                  <Link to="/weekly-log" className="ml-auto text-xs text-brand hover:underline">Open Weekly Log →</Link>
+                </div>
+                <div className="space-y-2">
+                  {searchWeeklyLogs.map((w) => (
+                    <Card key={w.id} className="p-3">
+                      <p className="text-xs font-medium text-brand">{formatWeekRange(w.weekStartDate, w.weekEndDate)}</p>
+                      <p className="mt-1 text-sm text-foreground">{w.content}</p>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {searchRecognitions.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                  <Award className="h-4 w-4 text-muted-foreground" /> Recognition
+                  <Badge variant="secondary" className="text-[10px]">{searchRecognitions.length}</Badge>
+                  <Link to="/recognition" className="ml-auto text-xs text-brand hover:underline">Open Recognition →</Link>
+                </div>
+                <div className="space-y-2">
+                  {searchRecognitions.map((r) => (
+                    <Card key={r.id} className="p-3">
+                      <p className="text-sm font-medium">{r.source}</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(r.date)}</p>
+                      <p className="mt-1 text-sm text-foreground">{r.message}</p>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      ) : (
+      <>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0 pb-0 sm:pb-0">
@@ -740,6 +900,8 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+      </>
+      )}
     </div>
   );
 }
