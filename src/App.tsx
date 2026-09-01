@@ -9,7 +9,6 @@ import { GeneratePdfPage } from "@/pages/GeneratePdfPage";
 import { RecognitionPage } from "@/pages/RecognitionPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { TrashPage } from "@/pages/TrashPage";
-import { GlobalSearchPage } from "@/pages/GlobalSearchPage";
 
 export default function App() {
   return (
@@ -23,7 +22,6 @@ export default function App() {
             <Route path="weekly-log" element={<WeeklyLogPage />} />
             <Route path="recognition" element={<RecognitionPage />} />
             <Route path="generate" element={<GeneratePdfPage />} />
-            <Route path="search" element={<GlobalSearchPage />} />
             <Route path="trash" element={<TrashPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
