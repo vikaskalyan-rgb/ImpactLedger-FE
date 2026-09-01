@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, ListChecks, FileDown, Award, Sparkles, Menu, X, Settings, NotebookPen, Search, ListTodo } from "lucide-react";
+import { LayoutDashboard, ListChecks, FileDown, Award, Sparkles, Menu, X, Settings, NotebookPen, ListTodo } from "lucide-react";
 import { CompanySwitcher } from "@/components/layout/CompanySwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -11,7 +11,6 @@ const navItems = [
   { to: "/weekly-log", label: "Weekly Log", icon: NotebookPen },
   { to: "/recognition", label: "Recognition", icon: Award },
   { to: "/generate", label: "Generate Report", icon: FileDown },
-  { to: "/search", label: "Search", icon: Search },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
